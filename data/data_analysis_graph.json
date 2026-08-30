@@ -1,0 +1,46 @@
+{
+  "domain": "data_analysis",
+  "topics": {
+    "descriptive_statistics": {
+      "prerequisites": [],
+      "objective": "Compute and interpret mean, median, mode, variance, standard deviation, and percentiles for a dataset."
+    },
+    "data_visualization": {
+      "prerequisites": ["descriptive_statistics"],
+      "objective": "Select appropriate chart types (histogram, boxplot, scatter plot, bar chart) and create them using matplotlib/seaborn."
+    },
+    "probability_basics": {
+      "prerequisites": ["descriptive_statistics"],
+      "objective": "Apply rules of probability, conditional probability, and Bayes' theorem to simple events."
+    },
+    "distributions": {
+      "prerequisites": ["probability_basics"],
+      "objective": "Identify and apply the normal, binomial, and Poisson distributions; use z-scores and the central limit theorem."
+    },
+    "hypothesis_testing": {
+      "prerequisites": ["distributions"],
+      "objective": "Formulate null and alternative hypotheses; apply t-tests and chi-squared tests; interpret p-values and Type I/II errors."
+    },
+    "correlation_regression": {
+      "prerequisites": ["hypothesis_testing", "data_visualization"],
+      "objective": "Compute Pearson/Spearman correlation; fit and interpret a simple linear regression model; distinguish correlation from causation."
+    },
+    "pandas_basics": {
+      "prerequisites": ["data_visualization"],
+      "objective": "Load, inspect, filter, group, and aggregate tabular data using pandas DataFrames and Series."
+    },
+    "data_cleaning": {
+      "prerequisites": ["pandas_basics"],
+      "objective": "Identify and handle missing values, outliers, and duplicate records; encode categorical variables."
+    },
+    "exploratory_data_analysis": {
+      "prerequisites": ["data_cleaning", "correlation_regression"],
+      "objective": "Conduct a systematic EDA: summarize distributions, identify relationships, and document findings with annotated plots."
+    },
+    "statistical_reporting": {
+      "prerequisites": ["hypothesis_testing", "exploratory_data_analysis"],
+      "objective": "Present statistical results clearly: report effect sizes, confidence intervals, and interpret findings in plain language."
+    }
+  },
+  "notes": "10-topic Data Analysis domain for the curric-agents pilot study."
+}

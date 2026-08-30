@@ -1,0 +1,16 @@
+{
+  "form": "B",
+  "domain": "data_analysis",
+  "questions": [
+    {"id": "q1", "topic": "descriptive_statistics", "prompt": "For a perfectly symmetric distribution, which statement is true?", "options": ["Mean > Median > Mode", "Mean < Median < Mode", "Mean = Median = Mode", "Mode is always largest"], "correct_index": 2},
+    {"id": "q2", "topic": "data_visualization", "prompt": "A scatter plot is most appropriate for visualising the relationship between:", "options": ["A categorical and a numeric variable", "Two categorical variables", "Two continuous numeric variables", "Time and a categorical variable"], "correct_index": 2},
+    {"id": "q3", "topic": "probability_basics", "prompt": "Bayes' theorem allows updating which probability given new evidence?", "options": ["Likelihood", "Prior probability", "Posterior probability", "Marginal probability"], "correct_index": 2},
+    {"id": "q4", "topic": "distributions", "prompt": "A z-score of 2 means a value is how many standard deviations above the mean?", "options": ["0", "1", "2", "4"], "correct_index": 2},
+    {"id": "q5", "topic": "hypothesis_testing", "prompt": "A Type II error means:", "options": ["Rejecting a true null hypothesis", "Failing to reject a false null hypothesis", "Setting alpha too low", "Using the wrong test statistic"], "correct_index": 1},
+    {"id": "q6", "topic": "correlation_regression", "prompt": "In simple linear regression, the slope coefficient represents:", "options": ["The value of y when x is zero", "The change in y for a one-unit increase in x", "The correlation coefficient", "The residual variance"], "correct_index": 1},
+    {"id": "q7", "topic": "pandas_basics", "prompt": "Which pandas operation splits data into groups and applies an aggregation function?", "options": ["df.merge()", "df.pivot()", "df.groupby().agg()", "df.concat()"], "correct_index": 2},
+    {"id": "q8", "topic": "data_cleaning", "prompt": "Which strategy is most appropriate for imputing missing values in a numeric column with a skewed distribution?", "options": ["Mean imputation", "Median imputation", "Mode imputation", "Zero imputation"], "correct_index": 1},
+    {"id": "q9", "topic": "exploratory_data_analysis", "prompt": "During EDA, finding two highly correlated predictors (r > 0.95) suggests you should consider:", "options": ["Removing both variables", "Keeping both to improve accuracy", "Removing or combining one to reduce multicollinearity", "Converting them to categorical"], "correct_index": 2},
+    {"id": "q10", "topic": "statistical_reporting", "prompt": "Cohen's d is a measure of:", "options": ["Statistical significance", "Sample size adequacy", "Effect size for mean differences", "Correlation strength"], "correct_index": 2}
+  ]
+}

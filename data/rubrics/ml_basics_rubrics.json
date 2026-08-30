@@ -1,0 +1,105 @@
+{
+  "domain": "ml_basics",
+  "rubrics": {
+    "ml_introduction": {
+      "question": "In your own words, distinguish supervised, unsupervised, and reinforcement learning, and give one real-world example of any of them.",
+      "reference_answer": "Supervised learning trains on labelled input-output pairs. Unsupervised learning finds structure in unlabelled data (clusters, components). Reinforcement learning learns a policy by trial-and-error rewards. Example: spam filters (supervised), customer segmentation (unsupervised), game-playing agents (RL).",
+      "rubric_points": [
+        "Labels vs no labels vs reward signal distinguished (1 pt)",
+        "All three paradigms mentioned (1 pt)",
+        "Plausible real-world example (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "data_preprocessing": {
+      "question": "Why do we normalise or standardise features before training many ML models, and how can missing values be handled?",
+      "reference_answer": "Scale-sensitive models (gradient descent, k-NN, SVM) treat large-range features as more important unless features are brought to a comparable scale. Missing values can be dropped, imputed (mean/median/mode), or modelled with an indicator.",
+      "rubric_points": [
+        "Scale affecting model behaviour (1 pt)",
+        "At least one valid missing-value strategy (1 pt)",
+        "Example of a scale-sensitive method or equivalent (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "linear_regression": {
+      "question": "What does a linear regression coefficient mean, and name one metric used to judge fit.",
+      "reference_answer": "A coefficient is the expected change in the target for a one-unit change in that feature, holding others fixed. Fit is judged with MSE/RMSE or R-squared.",
+      "rubric_points": [
+        "Coefficient as change in target per unit feature (1 pt)",
+        "Names MSE, RMSE, or R-squared (1 pt)",
+        "Holds-other-features-fixed or similar caveat (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "logistic_regression": {
+      "question": "Why is logistic regression used for classification, and how do we interpret its output?",
+      "reference_answer": "The sigmoid squashes a linear score into a probability between 0 and 1, suitable for binary class membership. A threshold (often 0.5) converts probability to a class label; evaluation uses accuracy, precision/recall, or a confusion matrix.",
+      "rubric_points": [
+        "Sigmoid / probability in [0,1] (1 pt)",
+        "Threshold to class label (1 pt)",
+        "Names a classification metric (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "decision_trees": {
+      "question": "How does a decision tree choose a split, and how can you reduce overfitting?",
+      "reference_answer": "Splits maximise information gain or minimise Gini impurity. Overfitting is reduced by limiting max depth, requiring a minimum samples per leaf, or pruning.",
+      "rubric_points": [
+        "Gini or entropy / information gain (1 pt)",
+        "At least one regularisation/pruning method (1 pt)",
+        "Overfitting described as fitting noise / too-deep trees (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "model_evaluation": {
+      "question": "Why is a train/test split (or cross-validation) necessary, and what is the difference between precision and recall?",
+      "reference_answer": "Evaluating on training data overestimates performance. A held-out test set or k-fold CV estimates generalisation. Precision is the fraction of predicted positives that are correct; recall is the fraction of actual positives found.",
+      "rubric_points": [
+        "Need for unseen data / generalisation (1 pt)",
+        "Precision defined reasonably (1 pt)",
+        "Recall defined reasonably (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "overfitting_regularization": {
+      "question": "What is overfitting, and how do L1 or L2 regularisation help?",
+      "reference_answer": "Overfitting means low training error but poor generalisation. L2 (ridge) shrinks weights; L1 (lasso) can drive some weights to zero, selecting features. Both penalise complexity in the loss.",
+      "rubric_points": [
+        "Train vs test gap / memorising noise (1 pt)",
+        "Penalty on weights / complexity (1 pt)",
+        "L1 vs L2 or sparsity mentioned (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "ensemble_methods": {
+      "question": "How do bagging and boosting differ in how they combine models?",
+      "reference_answer": "Bagging trains models in parallel on bootstrap samples and averages votes (Random Forests reduce variance). Boosting trains models sequentially, each focusing on previous errors, reducing bias (e.g. AdaBoost, gradient boosting).",
+      "rubric_points": [
+        "Parallel bootstrap vs sequential error-focus (1 pt)",
+        "Variance vs bias intuition or equivalent (1 pt)",
+        "Names an ensemble algorithm (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "clustering": {
+      "question": "What does k-means optimise, and how can you choose k?",
+      "reference_answer": "k-means assigns points to the nearest of k centroids and updates centroids to minimise within-cluster squared distance. k is often chosen with the elbow method or silhouette score.",
+      "rubric_points": [
+        "Centroids / within-cluster distance (1 pt)",
+        "Elbow or silhouette (or equivalent) (1 pt)",
+        "Unsupervised / no labels noted (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "neural_network_basics": {
+      "question": "Describe forward propagation in a feedforward network and the role of an activation function.",
+      "reference_answer": "Inputs are multiplied by weights, biased, and passed through nonlinear activations layer by layer to produce an output. Activations (ReLU, sigmoid) introduce nonlinearity so the network can learn non-linear functions; weights are updated by gradient descent on a loss.",
+      "rubric_points": [
+        "Weighted sum + activation through layers (1 pt)",
+        "Nonlinearity purpose (1 pt)",
+        "Learning via gradient descent / backprop mentioned (1 pt)"
+      ],
+      "max_score": 3
+    }
+  }
+}

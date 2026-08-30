@@ -1,0 +1,36 @@
+{
+  "domain": "python_programming",
+  "rubrics": {
+    "control_flow": {
+      "question": "In your own words, explain what an `elif` clause does and give one situation where you'd need it instead of just `if` and `else`.",
+      "reference_answer": "An `elif` clause lets a program check an additional condition only if the previous `if` (or `elif`) condition was False. It's needed whenever there are more than two mutually exclusive outcomes to check, so you avoid nesting multiple separate if-blocks.",
+      "rubric_points": [
+        "Mentions that elif is only checked if prior conditions were False (1 pt)",
+        "Mentions it allows more than two branches / avoids nested if-statements (1 pt)",
+        "Gives a plausible concrete example situation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "functions": {
+      "question": "What is the difference between a function's parameter and its argument? Explain with a short example.",
+      "reference_answer": "A parameter is the name listed in the function definition (e.g., `def greet(name):` — `name` is a parameter). An argument is the actual value passed in when the function is called (e.g., `greet('Alex')` — `'Alex'` is the argument).",
+      "rubric_points": [
+        "Correctly distinguishes definition-time (parameter) vs call-time (argument) (1 pt)",
+        "Example correctly uses the terms consistently with the definition given (1 pt)",
+        "Answer is expressed clearly, not just a restated definition without explanation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "exceptions": {
+      "question": "Why might you use a `try/except` block instead of checking conditions with `if` statements before risky code runs?",
+      "reference_answer": "try/except lets code attempt an operation and handle failure only if it actually happens, which is often simpler and more reliable than trying to predict and check every possible failure condition in advance (e.g., file-not-found, division by zero, network errors), and it separates the normal-case logic from the error-handling logic.",
+      "rubric_points": [
+        "Recognizes try/except handles failure after the fact rather than predicting it upfront (1 pt)",
+        "Gives at least one concrete example of a risky operation (1 pt)",
+        "Notes readability/separation-of-concerns benefit, or an equivalent valid justification (1 pt)"
+      ],
+      "max_score": 3
+    }
+  },
+  "notes": "Add one rubric entry per topic in prerequisite_graph.json before running a full pilot session. Each rubric_points entry should be checkable independently by the LLM-as-judge prompt in src/agents/assessment.py."
+}

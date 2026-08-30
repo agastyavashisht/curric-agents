@@ -1,0 +1,16 @@
+{
+  "form": "B",
+  "domain": "ml_basics",
+  "questions": [
+    {"id": "q1", "topic": "ml_introduction", "prompt": "An agent that learns by receiving rewards for actions is using which learning paradigm?", "options": ["Supervised learning", "Unsupervised learning", "Reinforcement learning", "Semi-supervised learning"], "correct_index": 2},
+    {"id": "q2", "topic": "data_preprocessing", "prompt": "Min-max normalisation transforms features to which range by default?", "options": ["(-1, 1)", "(0, 1)", "(0, 100)", "(-∞, +∞)"], "correct_index": 1},
+    {"id": "q3", "topic": "linear_regression", "prompt": "Mean Squared Error (MSE) penalises large errors more than small ones because it:", "options": ["Uses absolute values", "Squares the residuals", "Takes the cube root", "Ignores outliers"], "correct_index": 1},
+    {"id": "q4", "topic": "logistic_regression", "prompt": "In logistic regression the decision boundary is typically set at sigmoid output:", "options": ["0", "0.5", "1", "-1"], "correct_index": 1},
+    {"id": "q5", "topic": "decision_trees", "prompt": "Limiting the maximum depth of a decision tree primarily helps to:", "options": ["Speed up training", "Reduce overfitting", "Increase entropy", "Remove missing values"], "correct_index": 1},
+    {"id": "q6", "topic": "model_evaluation", "prompt": "A model with high recall but low precision has many:", "options": ["False negatives", "False positives", "True negatives", "True positives only"], "correct_index": 1},
+    {"id": "q7", "topic": "overfitting_regularization", "prompt": "High bias in a model usually indicates:", "options": ["Overfitting", "High variance", "Underfitting", "Perfect generalisation"], "correct_index": 2},
+    {"id": "q8", "topic": "ensemble_methods", "prompt": "In gradient boosting, each new tree is trained to:", "options": ["Replace the previous tree", "Fit the residual errors of the ensemble so far", "Cluster the data", "Maximise variance"], "correct_index": 1},
+    {"id": "q9", "topic": "clustering", "prompt": "K-means clustering minimises which objective?", "options": ["Within-cluster sum of squared distances", "Between-cluster variance", "Total entropy", "Gini impurity"], "correct_index": 0},
+    {"id": "q10", "topic": "neural_network_basics", "prompt": "Backpropagation computes which quantity used to update network weights?", "options": ["The loss value", "The gradient of the loss w.r.t. each weight", "The output probabilities", "The activation values only"], "correct_index": 1}
+  ]
+}

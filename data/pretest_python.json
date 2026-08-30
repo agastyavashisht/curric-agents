@@ -1,0 +1,16 @@
+{
+  "form": "A",
+  "domain": "python_programming",
+  "questions": [
+    {"id": "q1", "topic": "variables_datatypes", "prompt": "What is the type of the value produced by `7 / 2` in Python 3?", "options": ["int", "float", "str", "bool"], "correct_index": 1},
+    {"id": "q2", "topic": "operators_expressions", "prompt": "What does `3 == 3 and 5 > 10` evaluate to?", "options": ["True", "False", "Error", "None"], "correct_index": 1},
+    {"id": "q3", "topic": "strings", "prompt": "What does `'hello'[1:4]` return?", "options": ["'hell'", "'ell'", "'ello'", "'h'"], "correct_index": 1},
+    {"id": "q4", "topic": "control_flow", "prompt": "Which keyword is used for an alternative condition after `if`?", "options": ["else if", "elseif", "elif", "elsif"], "correct_index": 2},
+    {"id": "q5", "topic": "loops", "prompt": "How many times does `for i in range(3):` execute its body?", "options": ["2", "3", "4", "Infinite"], "correct_index": 1},
+    {"id": "q6", "topic": "lists_tuples", "prompt": "Which of these is immutable?", "options": ["list", "dict", "tuple", "set"], "correct_index": 2},
+    {"id": "q7", "topic": "dictionaries_sets", "prompt": "What does `{'a': 1, 'b': 2}.keys()` return an iterable of?", "options": ["Values", "Keys", "Tuples", "Indices"], "correct_index": 1},
+    {"id": "q8", "topic": "functions", "prompt": "What is printed by `def f(x=5): return x*2` then `print(f())`?", "options": ["5", "10", "None", "Error"], "correct_index": 1},
+    {"id": "q9", "topic": "exceptions", "prompt": "Which block always runs, whether or not an exception occurred?", "options": ["try", "except", "finally", "raise"], "correct_index": 2},
+    {"id": "q10", "topic": "oop_basics", "prompt": "Which method is automatically called when a class instance is created?", "options": ["__str__", "__init__", "__new__", "__call__"], "correct_index": 1}
+  ]
+}

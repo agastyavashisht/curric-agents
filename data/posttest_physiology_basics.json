@@ -1,0 +1,16 @@
+{
+  "form": "B",
+  "domain": "physiology_basics",
+  "questions": [
+    {"id": "q1", "topic": "cell_biology", "prompt": "The cell membrane's selective permeability is primarily due to its:", "options": ["Rigid protein skeleton", "Phospholipid bilayer with embedded proteins", "Thick polysaccharide coat", "Nuclear envelope"], "correct_index": 1},
+    {"id": "q2", "topic": "homeostasis", "prompt": "Positive feedback during childbirth amplifies uterine contractions until delivery. This is an example of:", "options": ["Negative feedback restoring equilibrium", "Positive feedback driving a process to completion", "Homeostatic set-point adjustment", "Receptor desensitisation"], "correct_index": 1},
+    {"id": "q3", "topic": "nervous_system", "prompt": "An action potential is triggered when the membrane potential reaches the:", "options": ["Resting potential", "Threshold potential", "Equilibrium potential for K+", "Reversal potential for Na+"], "correct_index": 1},
+    {"id": "q4", "topic": "cardiovascular_system", "prompt": "Increased parasympathetic (vagal) tone causes heart rate to:", "options": ["Increase", "Decrease", "Stay the same", "Become irregular"], "correct_index": 1},
+    {"id": "q5", "topic": "respiratory_system", "prompt": "The oxyhemoglobin dissociation curve shifts rightward (Bohr effect) in response to:", "options": ["Decreased CO₂ and increased pH", "Increased CO₂ and decreased pH", "Decreased temperature", "Increased O₂ partial pressure"], "correct_index": 1},
+    {"id": "q6", "topic": "ecg_basics", "prompt": "The P-R interval on the ECG represents the time for impulse conduction from:", "options": ["SA node through the AV node to the ventricles", "Ventricles to repolarise", "QRS onset to T-wave peak", "Atrial depolarisation to atrial repolarisation"], "correct_index": 0},
+    {"id": "q7", "topic": "muscular_system", "prompt": "Which ion is released from the sarcoplasmic reticulum to initiate muscle contraction?", "options": ["Sodium (Na+)", "Potassium (K+)", "Calcium (Ca²+)", "Magnesium (Mg²+)"], "correct_index": 2},
+    {"id": "q8", "topic": "endocrine_system", "prompt": "Peptide hormones exert their effects by binding to:", "options": ["Intracellular nuclear receptors", "Cell surface receptors, activating second messengers", "DNA directly", "Mitochondrial receptors"], "correct_index": 1},
+    {"id": "q9", "topic": "renal_system", "prompt": "Antidiuretic hormone (ADH) increases water reabsorption primarily in the:", "options": ["Proximal convoluted tubule", "Loop of Henle ascending limb", "Collecting duct", "Bowman's capsule"], "correct_index": 2},
+    {"id": "q10", "topic": "biosignal_origins", "prompt": "Alpha waves (8–12 Hz) on an EEG are most prominent when the subject is:", "options": ["In deep sleep", "Alert with eyes open", "Relaxed with eyes closed", "Having a seizure"], "correct_index": 2}
+  ]
+}

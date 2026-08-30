@@ -1,0 +1,16 @@
+{
+  "form": "B",
+  "domain": "signal_processing",
+  "questions": [
+    {"id": "q1", "topic": "signals_systems", "prompt": "A discrete-time signal is obtained from a continuous signal by:", "options": ["Filtering", "Sampling at regular intervals", "Applying a Fourier transform", "Computing the convolution"], "correct_index": 1},
+    {"id": "q2", "topic": "sampling_theorem", "prompt": "Aliasing occurs when a signal is sampled at a rate that is:", "options": ["Exactly twice the highest frequency", "More than twice the highest frequency", "Less than twice the highest frequency", "Equal to the signal bandwidth"], "correct_index": 2},
+    {"id": "q3", "topic": "fourier_series", "prompt": "The DC component of a Fourier series corresponds to the:", "options": ["Highest frequency harmonic", "Average (mean) value of the signal", "Phase offset", "Fundamental frequency"], "correct_index": 1},
+    {"id": "q4", "topic": "fourier_transform", "prompt": "A signal that is narrow in time will be how in frequency?", "options": ["Narrow", "Broad (wide)", "Unchanged", "Negative"], "correct_index": 1},
+    {"id": "q5", "topic": "dft_fft", "prompt": "The frequency resolution of a DFT is determined by:", "options": ["The sampling frequency alone", "The total signal duration (record length)", "The number of FFT points only", "The amplitude of the signal"], "correct_index": 1},
+    {"id": "q6", "topic": "filtering_basics", "prompt": "A band-pass filter is typically constructed by combining:", "options": ["Two low-pass filters", "A low-pass and a high-pass filter", "Two high-pass filters", "A notch and a low-pass filter"], "correct_index": 1},
+    {"id": "q7", "topic": "convolution", "prompt": "The length of the output of convolving an N-point signal with an M-point filter is:", "options": ["N", "M", "N + M - 1", "N * M"], "correct_index": 2},
+    {"id": "q8", "topic": "windowing", "prompt": "Which window offers the best frequency resolution but most spectral leakage?", "options": ["Hamming", "Blackman", "Rectangular (no window)", "Hanning"], "correct_index": 2},
+    {"id": "q9", "topic": "stft_spectrogram", "prompt": "Making the STFT window longer improves which resolution at the cost of which other?", "options": ["Time resolution at cost of frequency resolution", "Frequency resolution at cost of time resolution", "Amplitude accuracy at cost of phase", "SNR at cost of bandwidth"], "correct_index": 1},
+    {"id": "q10", "topic": "noise_snr", "prompt": "Averaging N repetitions of a signal improves SNR by a factor of:", "options": ["N", "N²", "√N", "log(N)"], "correct_index": 2}
+  ]
+}

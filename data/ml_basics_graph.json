@@ -1,0 +1,46 @@
+{
+  "domain": "ml_basics",
+  "topics": {
+    "ml_introduction": {
+      "prerequisites": [],
+      "objective": "Understand what machine learning is, the difference between supervised, unsupervised, and reinforcement learning, and common real-world applications."
+    },
+    "data_preprocessing": {
+      "prerequisites": ["ml_introduction"],
+      "objective": "Apply data cleaning, normalization, standardization, and handling of missing values to prepare datasets for ML models."
+    },
+    "linear_regression": {
+      "prerequisites": ["data_preprocessing"],
+      "objective": "Understand and implement linear regression, interpret coefficients, and evaluate model fit using MSE and R-squared."
+    },
+    "logistic_regression": {
+      "prerequisites": ["linear_regression"],
+      "objective": "Apply logistic regression for binary classification, interpret sigmoid output as probability, and evaluate with accuracy and confusion matrix."
+    },
+    "decision_trees": {
+      "prerequisites": ["logistic_regression"],
+      "objective": "Build and interpret decision trees, understand splitting criteria (Gini, entropy), and control overfitting via max depth."
+    },
+    "model_evaluation": {
+      "prerequisites": ["logistic_regression"],
+      "objective": "Apply train/test split and k-fold cross-validation; compute precision, recall, F1-score, and ROC-AUC."
+    },
+    "overfitting_regularization": {
+      "prerequisites": ["model_evaluation"],
+      "objective": "Identify overfitting and underfitting; apply L1/L2 regularization and understand the bias-variance tradeoff."
+    },
+    "ensemble_methods": {
+      "prerequisites": ["decision_trees", "overfitting_regularization"],
+      "objective": "Understand bagging, boosting, and Random Forests; explain how ensembles reduce variance and bias."
+    },
+    "clustering": {
+      "prerequisites": ["data_preprocessing"],
+      "objective": "Apply k-means and hierarchical clustering; choose k using the elbow method and interpret cluster assignments."
+    },
+    "neural_network_basics": {
+      "prerequisites": ["overfitting_regularization"],
+      "objective": "Describe the structure of a feedforward neural network, explain forward propagation, activation functions, and gradient descent."
+    }
+  },
+  "notes": "10-topic ML Basics domain for the curric-agents pilot study."
+}

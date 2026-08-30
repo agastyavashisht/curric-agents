@@ -1,0 +1,46 @@
+{
+  "domain": "signal_processing",
+  "topics": {
+    "signals_systems": {
+      "prerequisites": [],
+      "objective": "Define continuous and discrete signals and systems; identify time-domain properties such as amplitude, frequency, and phase."
+    },
+    "sampling_theorem": {
+      "prerequisites": ["signals_systems"],
+      "objective": "State and apply the Nyquist-Shannon sampling theorem; explain aliasing and choose an appropriate sampling rate."
+    },
+    "fourier_series": {
+      "prerequisites": ["signals_systems"],
+      "objective": "Decompose periodic signals into sinusoidal components using the Fourier series and interpret the frequency spectrum."
+    },
+    "fourier_transform": {
+      "prerequisites": ["fourier_series", "sampling_theorem"],
+      "objective": "Compute and interpret the Fourier Transform; relate time-domain and frequency-domain representations."
+    },
+    "dft_fft": {
+      "prerequisites": ["fourier_transform"],
+      "objective": "Compute the Discrete Fourier Transform (DFT) and understand how the Fast Fourier Transform (FFT) algorithm reduces complexity."
+    },
+    "filtering_basics": {
+      "prerequisites": ["fourier_transform"],
+      "objective": "Design and apply low-pass, high-pass, and band-pass filters; characterize filters by cutoff frequency and order."
+    },
+    "convolution": {
+      "prerequisites": ["filtering_basics"],
+      "objective": "Compute discrete convolution and understand its role in FIR filtering and system response."
+    },
+    "windowing": {
+      "prerequisites": ["dft_fft"],
+      "objective": "Explain spectral leakage and apply windowing functions (Hamming, Hanning, Blackman) to reduce it."
+    },
+    "stft_spectrogram": {
+      "prerequisites": ["windowing", "dft_fft"],
+      "objective": "Compute the Short-Time Fourier Transform and interpret spectrograms for non-stationary signals."
+    },
+    "noise_snr": {
+      "prerequisites": ["filtering_basics"],
+      "objective": "Define signal-to-noise ratio (SNR); apply averaging and filtering strategies to improve SNR in noisy signals."
+    }
+  },
+  "notes": "10-topic Signal Processing domain for the curric-agents pilot study."
+}

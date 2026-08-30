@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+logs/*.jsonl
+!logs/.gitkeep
+results/generated_content.jsonl
+results/metrics_report.json
+
+# Pilot study — sensitive data, never commit
+pilot/student_id_map.csv
+pilot/session_logs/
+results/pretest_scores.csv
+results/posttest_scores.csv
+results/instructor_grades.csv

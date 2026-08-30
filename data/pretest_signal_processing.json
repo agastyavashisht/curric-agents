@@ -1,0 +1,16 @@
+{
+  "form": "A",
+  "domain": "signal_processing",
+  "questions": [
+    {"id": "q1", "topic": "signals_systems", "prompt": "Which property describes the number of oscillations per second of a sinusoidal signal?", "options": ["Amplitude", "Phase", "Frequency", "Period"], "correct_index": 2},
+    {"id": "q2", "topic": "sampling_theorem", "prompt": "According to the Nyquist theorem, the sampling rate must be at least:", "options": ["Equal to the signal frequency", "Half the signal frequency", "Twice the highest signal frequency", "Four times the signal frequency"], "correct_index": 2},
+    {"id": "q3", "topic": "fourier_series", "prompt": "The Fourier series represents a periodic signal as a sum of:", "options": ["Polynomials", "Sinusoids at harmonic frequencies", "Random noise components", "Step functions"], "correct_index": 1},
+    {"id": "q4", "topic": "fourier_transform", "prompt": "The Fourier Transform converts a signal from which domain to which domain?", "options": ["Frequency to time", "Time to frequency", "Amplitude to phase", "Discrete to continuous"], "correct_index": 1},
+    {"id": "q5", "topic": "dft_fft", "prompt": "The FFT algorithm reduces the computational complexity of the DFT from O(N²) to:", "options": ["O(N)", "O(N log N)", "O(log N)", "O(N³)"], "correct_index": 1},
+    {"id": "q6", "topic": "filtering_basics", "prompt": "A low-pass filter allows which frequencies to pass through?", "options": ["Only high frequencies", "Only frequencies above the cutoff", "Frequencies below the cutoff", "All frequencies equally"], "correct_index": 2},
+    {"id": "q7", "topic": "convolution", "prompt": "In the time domain, filtering a signal is equivalent to which operation in the frequency domain?", "options": ["Addition", "Subtraction", "Convolution", "Multiplication"], "correct_index": 3},
+    {"id": "q8", "topic": "windowing", "prompt": "Spectral leakage in DFT analysis is caused by:", "options": ["High sampling rate", "Assuming the signal is periodic within the analysis window when it is not", "Using too many frequency bins", "Applying a Hamming window"], "correct_index": 1},
+    {"id": "q9", "topic": "stft_spectrogram", "prompt": "A spectrogram displays signal energy as a function of:", "options": ["Amplitude and phase", "Time and frequency", "Sample index and amplitude", "Frequency and phase"], "correct_index": 1},
+    {"id": "q10", "topic": "noise_snr", "prompt": "Signal-to-noise ratio (SNR) is defined as the ratio of:", "options": ["Noise power to signal power", "Signal amplitude to noise amplitude", "Signal power to noise power", "Bandwidth to noise floor"], "correct_index": 2}
+  ]
+}

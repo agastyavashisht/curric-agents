@@ -1,0 +1,16 @@
+{
+  "form": "A",
+  "domain": "physiology_basics",
+  "questions": [
+    {"id": "q1", "topic": "cell_biology", "prompt": "Which organelle is the primary site of ATP production via oxidative phosphorylation?", "options": ["Nucleus", "Ribosome", "Mitochondria", "Golgi apparatus"], "correct_index": 2},
+    {"id": "q2", "topic": "homeostasis", "prompt": "Negative feedback in homeostasis acts to:", "options": ["Amplify a deviation from the set point", "Return the variable toward its set point", "Maintain a constant change", "Trigger a cascade of further change"], "correct_index": 1},
+    {"id": "q3", "topic": "nervous_system", "prompt": "The resting membrane potential of a typical neuron is approximately:", "options": ["+70 mV", "0 mV", "-70 mV", "-40 mV"], "correct_index": 2},
+    {"id": "q4", "topic": "cardiovascular_system", "prompt": "Which phase of the cardiac cycle corresponds to ventricular contraction?", "options": ["Diastole", "Systole", "Atrial relaxation", "Ventricular filling"], "correct_index": 1},
+    {"id": "q5", "topic": "respiratory_system", "prompt": "Gas exchange between alveoli and pulmonary capillaries occurs by:", "options": ["Active transport", "Osmosis", "Simple diffusion", "Facilitated diffusion"], "correct_index": 2},
+    {"id": "q6", "topic": "ecg_basics", "prompt": "The QRS complex on an ECG represents:", "options": ["Atrial depolarisation", "Ventricular depolarisation", "Ventricular repolarisation", "Atrial repolarisation"], "correct_index": 1},
+    {"id": "q7", "topic": "muscular_system", "prompt": "In the sliding filament model, muscle shortening occurs when:", "options": ["Actin and myosin filaments shorten", "Actin slides over myosin, reducing sarcomere length", "ATP is converted to ADP only", "Calcium leaves the sarcoplasm"], "correct_index": 1},
+    {"id": "q8", "topic": "endocrine_system", "prompt": "The hypothalamic-pituitary axis primarily controls hormone release via:", "options": ["Direct nerve stimulation only", "Negative feedback loops involving releasing and inhibiting hormones", "Local paracrine signals", "Blood pH changes"], "correct_index": 1},
+    {"id": "q9", "topic": "renal_system", "prompt": "Glomerular filtration rate (GFR) is primarily driven by:", "options": ["Osmotic pressure of plasma proteins", "Hydrostatic pressure in the glomerular capillaries", "Active transport of sodium", "Tubular secretion of urea"], "correct_index": 1},
+    {"id": "q10", "topic": "biosignal_origins", "prompt": "The EMG signal reflects:", "options": ["Cardiac electrical activity", "Electrical activity of skeletal muscle motor units", "Brain cortical oscillations", "Nerve conduction velocity only"], "correct_index": 1}
+  ]
+}

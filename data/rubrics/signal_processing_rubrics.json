@@ -1,0 +1,105 @@
+{
+  "domain": "signal_processing",
+  "rubrics": {
+    "signals_systems": {
+      "question": "What is the difference between a continuous-time and a discrete-time signal, and name two properties of a sinusoid.",
+      "reference_answer": "Continuous-time signals are defined for every instant on the real line; discrete-time signals are defined only at sampling instants nT. A sinusoid is characterised by amplitude, frequency, and phase.",
+      "rubric_points": [
+        "Continuous vs sampled/discrete domain (1 pt)",
+        "Two of amplitude, frequency, phase (1 pt)",
+        "Clear wording, not only labels (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "sampling_theorem": {
+      "question": "State the Nyquist-Shannon sampling theorem and explain what aliasing is.",
+      "reference_answer": "To reconstruct a bandlimited signal, sample at more than twice the highest frequency (Nyquist rate). Aliasing is high-frequency content folding into lower frequencies when this rate is violated.",
+      "rubric_points": [
+        "fs > 2 fmax (or equivalent) (1 pt)",
+        "Aliasing as frequency fold-over / misidentification (1 pt)",
+        "Consequence of undersampling (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "fourier_series": {
+      "question": "What does a Fourier series represent, and for what class of signals is it typically used?",
+      "reference_answer": "A Fourier series decomposes a periodic signal into a sum of sinusoids (or complex exponentials) at harmonic frequencies. It applies to periodic signals that meet Dirichlet conditions.",
+      "rubric_points": [
+        "Sum of sinusoids / harmonics (1 pt)",
+        "Periodic signals (1 pt)",
+        "Frequency-spectrum interpretation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "fourier_transform": {
+      "question": "How does the Fourier transform relate the time and frequency domains?",
+      "reference_answer": "The Fourier transform represents a (generally aperiodic) time signal as a continuum of frequency components. Magnitude shows which frequencies are present; phase encodes alignment. Inverse transform recovers the time signal.",
+      "rubric_points": [
+        "Time vs frequency representation (1 pt)",
+        "Magnitude/phase or spectrum idea (1 pt)",
+        "Invertibility / analysis-synthesis (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "dft_fft": {
+      "question": "What is the DFT, and why is the FFT used in practice?",
+      "reference_answer": "The DFT is the discrete, finite-length version of the Fourier transform on N samples. Direct DFT is O(N^2); the FFT computes the same result in O(N log N), making real-time spectral analysis practical.",
+      "rubric_points": [
+        "DFT as discrete frequency samples of a finite sequence (1 pt)",
+        "FFT is a fast algorithm for the DFT (1 pt)",
+        "Complexity reduction mentioned (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "filtering_basics": {
+      "question": "What does a low-pass filter do, and what is a cutoff frequency?",
+      "reference_answer": "A low-pass filter attenuates frequencies above a cutoff and passes those below. Cutoff is typically the frequency where gain drops by 3 dB. High-pass and band-pass are defined analogously.",
+      "rubric_points": [
+        "Passes low / attenuates high (or equivalent for another type if clearly stated) (1 pt)",
+        "Cutoff defined (1 pt)",
+        "Names another filter type or order/roll-off (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "convolution": {
+      "question": "What does convolution of a signal with a filter impulse response represent?",
+      "reference_answer": "Discrete convolution y[n] = x[n]*h[n] is the output of a linear time-invariant system with impulse response h. For FIR filters, output samples are weighted sums of current and past inputs.",
+      "rubric_points": [
+        "LTI output / impulse response (1 pt)",
+        "Weighted combination of samples (1 pt)",
+        "Link to FIR filtering (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "windowing": {
+      "question": "What is spectral leakage, and why do we apply a window before an FFT?",
+      "reference_answer": "Finite-length truncation is like multiplying by a rectangle, whose spectrum smears energy into neighbouring bins (leakage). Tapered windows (Hann, Hamming, Blackman) reduce side lobes at the cost of wider main lobes.",
+      "rubric_points": [
+        "Leakage from finite truncation (1 pt)",
+        "Window reduces side lobes (1 pt)",
+        "Names a window or trade-off (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "stft_spectrogram": {
+      "question": "Why use an STFT or spectrogram instead of a single FFT for a speech or music signal?",
+      "reference_answer": "A single FFT assumes stationarity over the whole record. Non-stationary signals change over time; the STFT computes FFTs on successive windowed frames so a spectrogram can show how frequency content evolves.",
+      "rubric_points": [
+        "Time-varying / non-stationary content (1 pt)",
+        "Windowed frames / time-frequency map (1 pt)",
+        "Trade-off time vs frequency resolution (optional but credit if present) or example (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "noise_snr": {
+      "question": "What is SNR, and name one practical way to improve it.",
+      "reference_answer": "Signal-to-noise ratio is the ratio of signal power to noise power, often in decibels. Averaging repeated measurements, band-limiting with a filter, or shielding/grounding can raise SNR.",
+      "rubric_points": [
+        "Signal power relative to noise (1 pt)",
+        "dB or ratio mentioned (1 pt)",
+        "Averaging, filtering, or another valid method (1 pt)"
+      ],
+      "max_score": 3
+    }
+  }
+}

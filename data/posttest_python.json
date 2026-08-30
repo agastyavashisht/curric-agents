@@ -1,0 +1,16 @@
+{
+  "form": "B",
+  "domain": "python_programming",
+  "questions": [
+    {"id": "q1", "topic": "variables_datatypes", "prompt": "What is the type of the value produced by `int('7')`?", "options": ["str", "int", "float", "bool"], "correct_index": 1},
+    {"id": "q2", "topic": "operators_expressions", "prompt": "What does `4 != 4 or 2 < 5` evaluate to?", "options": ["True", "False", "Error", "None"], "correct_index": 0},
+    {"id": "q3", "topic": "strings", "prompt": "What does `'python'[2:5]` return?", "options": ["'tho'", "'yth'", "'thon'", "'py'"], "correct_index": 0},
+    {"id": "q4", "topic": "control_flow", "prompt": "What is printed by `x = 4` then `if x > 5: print('a')` `elif x > 2: print('b')` `else: print('c')`?", "options": ["a", "b", "c", "Nothing"], "correct_index": 1},
+    {"id": "q5", "topic": "loops", "prompt": "How many times does `for i in range(2, 6, 2):` execute its body?", "options": ["1", "2", "3", "4"], "correct_index": 1},
+    {"id": "q6", "topic": "lists_tuples", "prompt": "Which method adds an item to the end of a list?", "options": ["insert()", "append()", "extend()", "add()"], "correct_index": 1},
+    {"id": "q7", "topic": "dictionaries_sets", "prompt": "What data structure guarantees all elements are unique?", "options": ["list", "tuple", "set", "str"], "correct_index": 2},
+    {"id": "q8", "topic": "functions", "prompt": "What is printed by `def f(*args): return len(args)` then `print(f(1,2,3))`?", "options": ["1", "2", "3", "Error"], "correct_index": 2},
+    {"id": "q9", "topic": "exceptions", "prompt": "Which keyword is used to manually trigger an exception?", "options": ["throw", "raise", "except", "error"], "correct_index": 1},
+    {"id": "q10", "topic": "oop_basics", "prompt": "What does `super().__init__()` typically do inside a subclass?", "options": ["Deletes the parent class", "Calls the parent class's constructor", "Creates a new class", "Overrides all methods"], "correct_index": 1}
+  ]
+}

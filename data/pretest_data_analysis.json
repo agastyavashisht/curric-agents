@@ -1,0 +1,16 @@
+{
+  "form": "A",
+  "domain": "data_analysis",
+  "questions": [
+    {"id": "q1", "topic": "descriptive_statistics", "prompt": "Which measure of central tendency is most affected by extreme outliers?", "options": ["Median", "Mode", "Mean", "Range"], "correct_index": 2},
+    {"id": "q2", "topic": "data_visualization", "prompt": "Which plot best shows the distribution shape and outliers of a single numeric variable?", "options": ["Bar chart", "Scatter plot", "Boxplot", "Pie chart"], "correct_index": 2},
+    {"id": "q3", "topic": "probability_basics", "prompt": "P(A|B) notation means:", "options": ["Probability of A and B together", "Probability of A given B has occurred", "Probability of B given A", "Probability of A or B"], "correct_index": 1},
+    {"id": "q4", "topic": "distributions", "prompt": "The Central Limit Theorem states that the sampling distribution of the mean approaches which distribution as sample size grows?", "options": ["Uniform", "Binomial", "Normal", "Exponential"], "correct_index": 2},
+    {"id": "q5", "topic": "hypothesis_testing", "prompt": "A p-value of 0.03 means:", "options": ["There is a 3% chance the null hypothesis is true", "If the null hypothesis were true, observing data this extreme has 3% probability", "The effect size is 3%", "The test power is 97%"], "correct_index": 1},
+    {"id": "q6", "topic": "correlation_regression", "prompt": "A Pearson correlation of r = -0.9 indicates:", "options": ["Weak negative relationship", "Strong positive relationship", "Strong negative relationship", "No relationship"], "correct_index": 2},
+    {"id": "q7", "topic": "pandas_basics", "prompt": "Which pandas method shows summary statistics (count, mean, std) for numeric columns?", "options": ["df.info()", "df.head()", "df.describe()", "df.dtypes"], "correct_index": 2},
+    {"id": "q8", "topic": "data_cleaning", "prompt": "One-hot encoding is used to handle which type of variable?", "options": ["Continuous numeric", "Ordinal with many levels", "Nominal categorical", "Binary numeric"], "correct_index": 2},
+    {"id": "q9", "topic": "exploratory_data_analysis", "prompt": "A histogram with a long right tail is described as:", "options": ["Negatively skewed", "Symmetric", "Positively skewed", "Bimodal"], "correct_index": 2},
+    {"id": "q10", "topic": "statistical_reporting", "prompt": "A confidence interval that does NOT include zero for a mean difference suggests:", "options": ["The result is practically significant", "The null hypothesis cannot be rejected", "The difference is statistically significant at that confidence level", "The sample size is too small"], "correct_index": 2}
+  ]
+}

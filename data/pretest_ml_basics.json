@@ -1,0 +1,16 @@
+{
+  "form": "A",
+  "domain": "ml_basics",
+  "questions": [
+    {"id": "q1", "topic": "ml_introduction", "prompt": "Which type of ML learns from labelled input-output pairs?", "options": ["Unsupervised learning", "Reinforcement learning", "Supervised learning", "Self-supervised learning"], "correct_index": 2},
+    {"id": "q2", "topic": "data_preprocessing", "prompt": "Which technique rescales features so they have zero mean and unit variance?", "options": ["Min-max normalisation", "Standardisation (z-score)", "Log transformation", "One-hot encoding"], "correct_index": 1},
+    {"id": "q3", "topic": "linear_regression", "prompt": "What does a coefficient of determination R² = 1 indicate?", "options": ["The model explains none of the variance", "The model perfectly fits the data", "The model is overfitting", "The residuals are non-zero"], "correct_index": 1},
+    {"id": "q4", "topic": "logistic_regression", "prompt": "What is the output range of the sigmoid function?", "options": ["(-∞, +∞)", "(0, 1)", "(-1, 1)", "(0, ∞)"], "correct_index": 1},
+    {"id": "q5", "topic": "decision_trees", "prompt": "Which criterion measures the probability of misclassifying a randomly chosen element?", "options": ["Entropy", "Gini impurity", "MSE", "R²"], "correct_index": 1},
+    {"id": "q6", "topic": "model_evaluation", "prompt": "What does k-fold cross-validation split the dataset into?", "options": ["k training sets only", "k equal folds used alternately as validation", "k independent test sets", "k bootstrapped samples"], "correct_index": 1},
+    {"id": "q7", "topic": "overfitting_regularization", "prompt": "L1 regularisation tends to produce which kind of solution?", "options": ["Large dense weights", "Sparse weights (some exactly zero)", "Equal weights", "Negative weights only"], "correct_index": 1},
+    {"id": "q8", "topic": "ensemble_methods", "prompt": "Random Forest reduces variance by doing which of the following?", "options": ["Training one deep tree", "Boosting weak learners sequentially", "Averaging predictions of many decorrelated trees", "Applying L2 regularisation"], "correct_index": 2},
+    {"id": "q9", "topic": "clustering", "prompt": "The elbow method is used to choose which parameter of k-means?", "options": ["The distance metric", "The number of clusters k", "The initialisation seed", "The number of iterations"], "correct_index": 1},
+    {"id": "q10", "topic": "neural_network_basics", "prompt": "What does a ReLU activation function output for a negative input?", "options": ["The input unchanged", "1", "0", "-1"], "correct_index": 2}
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "domain": "data_analysis",
+  "rubrics": {
+    "descriptive_statistics": {
+      "question": "When is the median a better summary than the mean, and what does standard deviation measure?",
+      "reference_answer": "The median is more robust to outliers and skewed distributions. Standard deviation (or variance) measures typical spread of values around the mean.",
+      "rubric_points": [
+        "Median robustness / skew / outliers (1 pt)",
+        "SD as spread around the mean (1 pt)",
+        "Example or comparison (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "data_visualization": {
+      "question": "Which chart would you use for a distribution of a numeric variable versus a relationship between two numeric variables, and why?",
+      "reference_answer": "A histogram or boxplot shows one numeric distribution. A scatter plot shows association between two numeric variables. Bar charts suit categorical counts.",
+      "rubric_points": [
+        "Histogram/boxplot for one numeric distribution (1 pt)",
+        "Scatter for two numeric variables (1 pt)",
+        "Bar for categories or equivalent justification (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "probability_basics": {
+      "question": "State Bayes' theorem in words and why conditional probability is not the same as the reverse condition.",
+      "reference_answer": "P(A|B) = P(B|A)P(A)/P(B). P(disease|positive test) is not P(positive test|disease) because base rates matter. Conditional probability is probability of A given B, not B given A.",
+      "rubric_points": [
+        "Bayes or equivalent updating formula (1 pt)",
+        "P(A|B) ≠ P(B|A) (1 pt)",
+        "Base rate / example (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "distributions": {
+      "question": "When would you use a normal versus a binomial model, and what does the central limit theorem say?",
+      "reference_answer": "Binomial models the number of successes in n independent Bernoulli trials. The normal is a continuous bell-shaped model, often for measurements. The CLT says the sampling distribution of the mean approaches normal for large n, even if the population is not normal.",
+      "rubric_points": [
+        "Binomial as count of successes (1 pt)",
+        "Normal as continuous / measurement model (1 pt)",
+        "CLT for means / large samples (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "hypothesis_testing": {
+      "question": "What is a p-value, and what is the difference between Type I and Type II error?",
+      "reference_answer": "A p-value is the probability, under the null, of data as extreme as observed. Type I is rejecting a true null (false positive); Type II is failing to reject a false null (false negative).",
+      "rubric_points": [
+        "p-value under H0 (1 pt)",
+        "Type I = false positive (1 pt)",
+        "Type II = false negative (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "correlation_regression": {
+      "question": "Why does correlation not imply causation, and what does a regression slope estimate?",
+      "reference_answer": "Association can be confounded, reverse-causal, or coincidental. A simple linear regression slope is the expected change in Y for a one-unit change in X. Pearson vs Spearman differ in linearity vs rank association.",
+      "rubric_points": [
+        "Confounding / reverse causation / coincidence (1 pt)",
+        "Slope as change in Y per unit X (1 pt)",
+        "Pearson or Spearman mentioned or equivalent (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "pandas_basics": {
+      "question": "What is a DataFrame, and how do you typically filter rows and aggregate groups in pandas?",
+      "reference_answer": "A DataFrame is a labelled 2D table (rows and columns). Filter with boolean masks or query; aggregate with groupby plus sum/mean/count.",
+      "rubric_points": [
+        "2D labelled table (1 pt)",
+        "Boolean filter / selection (1 pt)",
+        "groupby aggregation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "data_cleaning": {
+      "question": "Name two common data-quality problems and one way to handle each.",
+      "reference_answer": "Missing values: drop, impute, or flag. Outliers: investigate, winsorise, or transform. Duplicates: drop duplicates. Categorical encoding: one-hot or ordinal as appropriate.",
+      "rubric_points": [
+        "Two distinct problems (missing, outliers, dups, types) (1 pt)",
+        "Valid handling for first (1 pt)",
+        "Valid handling for second (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "exploratory_data_analysis": {
+      "question": "What should a systematic EDA include before you model a dataset?",
+      "reference_answer": "Summarise univariate distributions, check missingness and outliers, visualise relationships, and document findings. EDA informs cleaning and hypotheses rather than jumping straight to a model.",
+      "rubric_points": [
+        "Univariate summaries / plots (1 pt)",
+        "Relationships between variables (1 pt)",
+        "Document findings / inform next steps (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "statistical_reporting": {
+      "question": "Besides a p-value, what should you report so a reader can interpret a result, and why?",
+      "reference_answer": "Report effect size and a confidence interval, sample size, and a plain-language interpretation. p-values alone do not show practical importance or precision of the estimate.",
+      "rubric_points": [
+        "Effect size (1 pt)",
+        "Confidence interval or precision (1 pt)",
+        "Plain-language interpretation (1 pt)"
+      ],
+      "max_score": 3
+    }
+  }
+}

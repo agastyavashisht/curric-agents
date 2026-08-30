@@ -1,0 +1,105 @@
+{
+  "domain": "physiology_basics",
+  "rubrics": {
+    "cell_biology": {
+      "question": "Name two organelles and state one function of each, plus the main job of the cell membrane.",
+      "reference_answer": "The membrane is a selective barrier (phospholipid bilayer with proteins) controlling entry and exit. Mitochondria produce ATP; the nucleus stores DNA and directs transcription; ER synthesises proteins/lipids.",
+      "rubric_points": [
+        "Membrane as selective barrier (1 pt)",
+        "Two organelles with correct functions (1 pt)",
+        "Clear, not just a list of names (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "homeostasis": {
+      "question": "Define homeostasis and contrast negative and positive feedback with one physiological example each.",
+      "reference_answer": "Homeostasis is maintaining a stable internal environment. Negative feedback opposes deviation (e.g. temperature, blood glucose). Positive feedback amplifies a change until an endpoint (e.g. childbirth oxytocin, blood clotting).",
+      "rubric_points": [
+        "Stable internal environment (1 pt)",
+        "Negative feedback opposes change + example (1 pt)",
+        "Positive feedback amplifies + example (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "nervous_system": {
+      "question": "Outline how an action potential is generated and how the signal crosses a chemical synapse.",
+      "reference_answer": "Depolarisation opens voltage-gated Na+ channels (rising phase); K+ efflux repolarises. At a chemical synapse, Ca2+ influx triggers neurotransmitter release; transmitter binds postsynaptic receptors and changes potential.",
+      "rubric_points": [
+        "Na+/K+ (or depolarisation/repolarisation) (1 pt)",
+        "Neurotransmitter release at synapse (1 pt)",
+        "Postsynaptic receptor / potential change (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "cardiovascular_system": {
+      "question": "What events make up the cardiac cycle, and what determines arterial blood pressure?",
+      "reference_answer": "The cycle is systole (contraction/ejection) and diastole (relaxation/filling). Mean arterial pressure depends on cardiac output and total peripheral resistance; autonomic nerves adjust heart rate and vessel tone.",
+      "rubric_points": [
+        "Systole vs diastole (1 pt)",
+        "CO and TPR (or equivalent) (1 pt)",
+        "Autonomic or heart-rate regulation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "respiratory_system": {
+      "question": "How does gas exchange occur at the alveoli, and what does the oxyhemoglobin dissociation curve show?",
+      "reference_answer": "O2 and CO2 diffuse down partial-pressure gradients across the thin alveolar-capillary membrane. The dissociation curve relates Hb saturation to PO2; a right shift (e.g. high CO2, H+, temperature) unloads O2 more readily in tissues.",
+      "rubric_points": [
+        "Diffusion / partial pressure (1 pt)",
+        "Hb saturation vs PO2 (1 pt)",
+        "Shift or tissue unloading idea (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "ecg_basics": {
+      "question": "What do the P wave, QRS complex, and T wave represent on an ECG?",
+      "reference_answer": "P wave: atrial depolarisation. QRS: ventricular depolarisation. T wave: ventricular repolarisation. They correspond to atrial systole, ventricular systole, and ventricular recovery in the cardiac cycle.",
+      "rubric_points": [
+        "P = atrial depolarisation (1 pt)",
+        "QRS = ventricular depolarisation (1 pt)",
+        "T = ventricular repolarisation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "muscular_system": {
+      "question": "Explain the sliding filament idea and the roles of calcium and ATP in contraction.",
+      "reference_answer": "Actin and myosin filaments slide past each other, shortening the sarcomere. Ca2+ binds troponin, exposing myosin-binding sites. ATP is required for cross-bridge cycling and for pumping Ca2+ back into the SR to relax.",
+      "rubric_points": [
+        "Filaments slide / sarcomere shortens (1 pt)",
+        "Calcium exposes binding sites (1 pt)",
+        "ATP for cycling and/or relaxation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "endocrine_system": {
+      "question": "How do hormones typically act on target cells, and what is a negative-feedback loop in the hypothalamic-pituitary axis?",
+      "reference_answer": "Hormones bind receptors (membrane or intracellular) and change cell function via second messengers or gene transcription. In many axes, peripheral hormone inhibits hypothalamus/pituitary (e.g. thyroid hormone inhibiting TSH/TRH).",
+      "rubric_points": [
+        "Receptor binding (1 pt)",
+        "Intracellular effect (messenger or transcription) (1 pt)",
+        "Downstream hormone inhibiting upstream (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "renal_system": {
+      "question": "What happens in glomerular filtration versus tubular reabsorption?",
+      "reference_answer": "Filtration is bulk flow of plasma (minus proteins/cells) from glomerulus into Bowman's capsule. Reabsorption returns water and solutes from the tubule to blood; secretion adds wastes from blood into the tubule. Together they regulate volume and electrolytes.",
+      "rubric_points": [
+        "Filtration at glomerulus (1 pt)",
+        "Reabsorption back to blood (1 pt)",
+        "Secretion or fluid/electrolyte regulation (1 pt)"
+      ],
+      "max_score": 3
+    },
+    "biosignal_origins": {
+      "question": "What physiological events generate the ECG, EMG, and EEG?",
+      "reference_answer": "ECG: summed cardiac muscle depolarisation/repolarisation. EMG: motor-unit action potentials in skeletal muscle. EEG: postsynaptic potentials of cortical neurons, not single spikes. Waveform features map to those sources.",
+      "rubric_points": [
+        "ECG from cardiac electrical activity (1 pt)",
+        "EMG from muscle motor units (1 pt)",
+        "EEG from cortical neuronal activity (1 pt)"
+      ],
+      "max_score": 3
+    }
+  }
+}

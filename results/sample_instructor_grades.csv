@@ -1,0 +1,9 @@
+student_id,question_id,system_score,instructor_score
+S01,functions_q1,2.3,2.6
+S02,functions_q1,2.6,2.5
+S03,functions_q1,2.2,1.9
+S04,functions_q1,2.8,3.0
+S05,functions_q1,1.7,1.6
+S06,functions_q1,1.9,1.6
+S07,functions_q1,2.6,2.1
+S08,functions_q1,2.1,1.9

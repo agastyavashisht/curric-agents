@@ -1,0 +1,46 @@
+{
+  "domain": "physiology_basics",
+  "topics": {
+    "cell_biology": {
+      "prerequisites": [],
+      "objective": "Describe the structure and function of the cell membrane, nucleus, mitochondria, and endoplasmic reticulum."
+    },
+    "homeostasis": {
+      "prerequisites": ["cell_biology"],
+      "objective": "Define homeostasis; explain negative and positive feedback mechanisms with physiological examples."
+    },
+    "nervous_system": {
+      "prerequisites": ["cell_biology"],
+      "objective": "Describe neuron structure, resting potential, action potential generation, and synaptic transmission."
+    },
+    "cardiovascular_system": {
+      "prerequisites": ["homeostasis"],
+      "objective": "Explain the cardiac cycle, heart rate regulation, blood pressure determinants, and the role of the autonomic nervous system."
+    },
+    "respiratory_system": {
+      "prerequisites": ["homeostasis"],
+      "objective": "Describe the mechanics of breathing, lung volumes, gas exchange at the alveolus, and the oxyhemoglobin dissociation curve."
+    },
+    "ecg_basics": {
+      "prerequisites": ["cardiovascular_system", "nervous_system"],
+      "objective": "Identify the P, QRS, and T waves on an ECG trace and relate them to the phases of the cardiac cycle."
+    },
+    "muscular_system": {
+      "prerequisites": ["nervous_system"],
+      "objective": "Explain the sliding filament model of muscle contraction, the role of calcium and ATP, and motor unit recruitment."
+    },
+    "endocrine_system": {
+      "prerequisites": ["homeostasis"],
+      "objective": "Describe hormone classification, receptor binding, and feedback control with examples from the hypothalamic-pituitary axis."
+    },
+    "renal_system": {
+      "prerequisites": ["homeostasis", "cardiovascular_system"],
+      "objective": "Explain glomerular filtration, tubular reabsorption and secretion, and how the kidney regulates fluid and electrolyte balance."
+    },
+    "biosignal_origins": {
+      "prerequisites": ["ecg_basics", "muscular_system"],
+      "objective": "Explain the physiological origins of ECG, EMG, and EEG biosignals and relate waveform features to underlying physiology."
+    }
+  },
+  "notes": "10-topic Physiology Basics domain for the curric-agents pilot study."
+}
