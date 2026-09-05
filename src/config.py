@@ -15,16 +15,29 @@ from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv(), override=True)
 
-MODEL_PROVIDER  = os.getenv("MODEL_PROVIDER", "gemini").lower()
 
-OPENAI_MODEL    = os.getenv("OPENAI_MODEL",    "gpt-4o")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
-GEMINI_MODEL    = os.getenv("GEMINI_MODEL",    "gemini-3.6-flash")
-GROQ_MODEL      = os.getenv("GROQ_MODEL",      "openai/gpt-oss-120b")
+def _secret(key: str, default: str = "") -> str:
+    """Read from st.secrets (Streamlit Cloud) or os.environ (.env / local)."""
+    try:
+        import streamlit as st
+        val = st.secrets.get(key, "")
+        if val:
+            return str(val)
+    except Exception:
+        pass
+    return os.getenv(key, default)
 
-DB_PATH          = os.getenv("DB_PATH",          "results/learner_state.db")
-LOG_PATH         = os.getenv("LOG_PATH",          "logs/agent_calls.jsonl")
-CONTENT_LOG_PATH = os.getenv("CONTENT_LOG_PATH",  "results/generated_content.jsonl")
+
+MODEL_PROVIDER  = _secret("MODEL_PROVIDER", "groq").lower()
+
+OPENAI_MODEL    = _secret("OPENAI_MODEL",    "gpt-4o")
+ANTHROPIC_MODEL = _secret("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+GEMINI_MODEL    = _secret("GEMINI_MODEL",    "gemini-3.6-flash")
+GROQ_MODEL      = _secret("GROQ_MODEL",      "openai/gpt-oss-120b")
+
+DB_PATH          = _secret("DB_PATH",          "results/learner_state.db")
+LOG_PATH         = _secret("LOG_PATH",          "logs/agent_calls.jsonl")
+CONTENT_LOG_PATH = _secret("CONTENT_LOG_PATH",  "results/generated_content.jsonl")
 
 TEMPERATURES = {
     "planner":          0.2,
@@ -112,40 +125,40 @@ def get_llm(agent_key: str):
     The returned model's `.invoke()` method is wrapped with retry logic.
     """
     load_dotenv(find_dotenv(), override=True)
-    provider    = os.getenv("MODEL_PROVIDER", "gemini").lower()
+    provider    = _secret("MODEL_PROVIDER", "groq").lower()
     temperature = TEMPERATURES[agent_key]
 
     if provider == "openai":
         from langchain_openai import ChatOpenAI
-        base_url = os.getenv("OPENAI_BASE_URL", "")
+        base_url = _secret("OPENAI_BASE_URL", "")
         llm = ChatOpenAI(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            model=_secret("OPENAI_MODEL", "gpt-4o"),
             temperature=temperature,
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_api_key=_secret("OPENAI_API_KEY"),
             **({"base_url": base_url} if base_url else {}),
         )
 
     elif provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
         llm = ChatAnthropic(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5"),
+            model=_secret("ANTHROPIC_MODEL", "claude-sonnet-4-5"),
             temperature=temperature,
         )
 
     elif provider == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
         llm = ChatGoogleGenerativeAI(
-            model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+            model=_secret("GEMINI_MODEL", "gemini-3.6-flash"),
             temperature=temperature,
-            google_api_key=os.getenv("GEMINI_API_KEY"),
+            google_api_key=_secret("GEMINI_API_KEY"),
         )
 
     elif provider == "groq":
         from langchain_groq import ChatGroq
         llm = ChatGroq(
-            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+            model=_secret("GROQ_MODEL", "openai/gpt-oss-120b"),
             temperature=temperature,
-            groq_api_key=os.getenv("GROQ_API_KEY"),
+            groq_api_key=_secret("GROQ_API_KEY"),
         )
 
     else:
@@ -161,11 +174,33 @@ def get_llm(agent_key: str):
 
 
 class _RetryProxy:
-    """Thin proxy that adds retry-with-backoff around a LangChain LLM's invoke()."""
+    """
+    Thin proxy that adds retry-with-backoff and a hard 30s timeout around
+    a LangChain LLM's invoke().
+
+    NFR-latency: a single agent turn must return in < 8 s under normal
+    conditions. The 30 s hard timeout ensures a frozen API call never
+    blocks a student session indefinitely — it is treated as a failure
+    and retried/fallen back like any other error.
+    """
+    _HARD_TIMEOUT = 30  # seconds
 
     def __init__(self, llm):
         self._llm = llm
-        self.invoke = with_retry(llm.invoke)
+        self.invoke = with_retry(self._invoke_with_timeout)
+
+    def _invoke_with_timeout(self, *args, **kwargs):
+        """Calls llm.invoke with a hard timeout using a background thread."""
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(self._llm.invoke, *args, **kwargs)
+            try:
+                return future.result(timeout=self._HARD_TIMEOUT)
+            except concurrent.futures.TimeoutError:
+                raise TimeoutError(
+                    f"LLM call timed out after {self._HARD_TIMEOUT}s. "
+                    "The API may be overloaded — will retry."
+                )
 
     def __getattr__(self, name):
         return getattr(self._llm, name)

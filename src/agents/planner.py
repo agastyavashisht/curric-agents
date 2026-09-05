@@ -129,15 +129,67 @@ def _is_valid_order(sequence: list, topics: dict, mastery: dict,
 def _bloom_level(mastery_score: float) -> str:
     """Map current mastery to a recommended Bloom cognitive level."""
     if mastery_score < 0.25:
-        return "remember"         # recall definitions and facts
+        return "remember"
     elif mastery_score < 0.45:
-        return "understand"       # explain in own words
+        return "understand"
     elif mastery_score < 0.65:
-        return "apply"            # use in a new example
+        return "apply"
     elif mastery_score < 0.80:
-        return "analyze"          # break down and compare
+        return "analyze"
     else:
-        return "evaluate"         # critique and justify
+        return "evaluate"
+
+
+# ── Paper Eq. 2: instructional-value heuristic ────────────────────────────────
+# c* = argmax  w1·(1 − P(Lc)) + w2·recency(c) − w3·redundancy(c)
+#
+# w1 = mastery gap weight  (prioritise what the student doesn't know)
+# w2 = recency weight      (prioritise topics not reviewed recently)
+# w3 = redundancy penalty  (penalise re-teaching already mastered topics)
+#
+# recency(c)    = days_since_last_review / 14  capped at 1.0
+# redundancy(c) = 1.0 if mastery >= MASTERY_THRESHOLD else 0.0
+
+W1 = 0.6   # mastery-gap weight
+W2 = 0.3   # recency weight
+W3 = 0.5   # redundancy penalty
+
+
+def _instructional_value(
+    topic: str,
+    mastery: dict,
+    last_reviewed: dict,
+    mastery_threshold: float = MASTERY_THRESHOLD,
+) -> float:
+    """
+    Computes the instructional-value heuristic from paper Eq. 2.
+
+    c* = argmax  w1·(1 − P(Lc)) + w2·recency(c) − w3·redundancy(c)
+
+    Returns a scalar; higher = more valuable to teach next.
+    Used to rank the topologically-valid baseline before LLM re-rank.
+    """
+    from datetime import datetime, timezone
+    p_lc = mastery.get(topic, 0.0)
+    mastery_gap = 1.0 - p_lc
+
+    # recency: fraction of a 14-day window since last review (0 = reviewed today)
+    ts = last_reviewed.get(topic)
+    if ts:
+        try:
+            reviewed = datetime.fromisoformat(ts)
+            if reviewed.tzinfo is None:
+                reviewed = reviewed.replace(tzinfo=timezone.utc)
+            days = (datetime.now(timezone.utc) - reviewed).total_seconds() / 86_400
+            recency = min(days / 14.0, 1.0)
+        except (ValueError, TypeError):
+            recency = 0.5
+    else:
+        recency = 0.5   # never reviewed → neutral recency
+
+    redundancy = 1.0 if p_lc >= mastery_threshold else 0.0
+
+    return W1 * mastery_gap + W2 * recency - W3 * redundancy
 
 
 # ── LLM re-rank ───────────────────────────────────────────────────────────────
@@ -162,8 +214,44 @@ No markdown fences. topic_sequence must contain EXACTLY the same ids as the base
 """
 
 
-def _llm_rerank(domain: str, baseline: List[str], topics: dict,
-                mastery: dict, misconceptions: dict) -> tuple[List[str], str]:
+def _iv_topological_sort(
+    topics: dict,
+    mastery: dict,
+    iv_scores: dict,
+    mastery_threshold: float = MASTERY_THRESHOLD,
+) -> list:
+    """
+    Greedy topological sort that at each step picks the READY topic
+    with the highest instructional value (paper Eq. 2).
+    'Ready' = all prerequisites already placed in the output.
+    Returns empty list on cycle (caller falls back to plain topo sort).
+    """
+    mastered  = {t for t in topics if mastery.get(t, 0.0) >= mastery_threshold}
+    remaining = {
+        t: set(info["prerequisites"])
+        for t, info in topics.items()
+        if t not in mastered
+    }
+    order     = []
+    satisfied = set(mastered)
+
+    while remaining:
+        ready = [t for t, prereqs in remaining.items() if not (prereqs - satisfied)]
+        if not ready:
+            return []   # cycle — caller uses plain baseline
+        # pick highest instructional value among ready topics
+        best = max(ready, key=lambda t: iv_scores.get(t, 0.0))
+        order.append(best)
+        satisfied.add(best)
+        del remaining[best]
+
+    return order
+
+
+def _llm_rerank(
+    domain: str, baseline: List[str], topics: dict,
+    mastery: dict, misconceptions: dict,
+) -> tuple[List[str], str]:
     """
     Returns (reranked_sequence, rationale).
     Falls back to baseline if LLM output is invalid.
@@ -212,14 +300,38 @@ def planner_node(state: LearnerState) -> LearnerState:
     if pretest_pct is not None:
         state["pretest_score_pct"] = None
 
-    # ── Layer 2 + 3: skip mastered, build baseline ────────────────────────────
+    # ── Layer 2 + 3: skip mastered, build topo baseline ──────────────────────
     baseline = _topological_order(topics, mastery)
+
+    # ── Layer 3b: sort baseline by paper Eq. 2 instructional-value heuristic ──
+    # Within the topologically-valid ordering, promote high-value topics.
+    # We do a stable sort that only reorders topics whose prerequisites are
+    # already satisfied at every position (preserves validity).
+    last_reviewed  = state.get("last_reviewed", {})
+    ablation_mode  = state.get("ablation_mode", "full")
+
+    if ablation_mode in ("full", "planner_only"):
+        # Apply Eq. 2 heuristic sort over the baseline
+        iv_scores = {
+            t: _instructional_value(t, mastery, last_reviewed)
+            for t in baseline
+        }
+        # Re-sort: build a valid order greedily — at each step pick the
+        # ready topic with the highest instructional value.
+        sorted_baseline = _iv_topological_sort(topics, mastery, iv_scores)
+        if sorted_baseline:
+            baseline = sorted_baseline
 
     # ── Layer 4: LLM re-rank with mastery gaps + misconceptions ──────────────
     misconceptions = state.get("misconceptions", {})
-    new_sequence, rationale = _llm_rerank(
-        state["domain"], baseline, topics, mastery, misconceptions
-    )
+    if ablation_mode in ("full", "planner_only"):
+        new_sequence, rationale = _llm_rerank(
+            state["domain"], baseline, topics, mastery, misconceptions
+        )
+    else:
+        # Ablation: no adaptive planning — keep fixed topo order
+        new_sequence = baseline
+        rationale    = f"ablation_mode={ablation_mode}: fixed sequence"
 
     # ── Layer 5: annotate with Bloom levels ───────────────────────────────────
     bloom_plan = [
@@ -239,14 +351,17 @@ def planner_node(state: LearnerState) -> LearnerState:
 
     state["session_history"] = list(state.get("session_history", [])) + [
         {
-            "event":            "plan",
-            "sequence":         new_sequence,
-            "baseline":         baseline,
-            "llm_reranked":     new_sequence != baseline,
-            "rationale":        rationale,
-            "pretest_used":     pretest_pct is not None,
-            "topics_skipped":   len(topics) - len(new_sequence),
-            "bloom_plan":       bloom_plan,
+            "event":          "plan",
+            "sequence":       new_sequence,
+            "baseline":       baseline,
+            "llm_reranked":   new_sequence != baseline,
+            "rationale":      rationale,
+            "pretest_used":   pretest_pct is not None,
+            "topics_skipped": len(topics) - len(new_sequence),
+            "bloom_plan":     bloom_plan,
+            "ablation_mode":  ablation_mode,
+            "iv_scores":      {t: round(_instructional_value(t, mastery, last_reviewed), 4)
+                               for t in new_sequence},
         }
     ]
     return state

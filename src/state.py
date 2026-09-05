@@ -15,6 +15,7 @@ class LearnerState(TypedDict):
     topic_pointer: Optional[str]     # the topic currently being taught/assessed
     bloom_plan: List[Dict[str, Any]] # [{topic, bloom_level, mastery_gap}, ...] — from Planner
     pretest_score_pct: Optional[float]  # set after pretest so Planner can bootstrap mastery
+    ablation_mode: str               # "full"|"no_adaptive_assessment"|"no_adaptive_planning"|"planner_only"|"static"
 
     # --- written by Content ---
     current_material: Optional[Dict[str, Any]]  # {"explanation": str, "example": str}
@@ -33,6 +34,7 @@ class LearnerState(TypedDict):
     # --- session bookkeeping ---
     session_history: List[Dict[str, Any]]  # append-only log of what happened this session
     step_count: int
+    current_phase: str   # last known Streamlit phase — used to resume interrupted sessions
 
 
 def new_state(student_id: str, domain: str) -> LearnerState:
@@ -44,6 +46,7 @@ def new_state(student_id: str, domain: str) -> LearnerState:
         topic_pointer=None,
         bloom_plan=[],
         pretest_score_pct=None,
+        ablation_mode="full",
         current_material=None,
         pending_item=None,
         last_grade=None,
@@ -54,4 +57,5 @@ def new_state(student_id: str, domain: str) -> LearnerState:
         replan_flag=False,
         session_history=[],
         step_count=0,
+        current_phase="pretest",
     )

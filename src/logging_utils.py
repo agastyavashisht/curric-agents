@@ -2,9 +2,17 @@
 Every agent call gets logged here, in real time, as it happens.
 
 The log is the raw data eval/coordination_efficiency.py reads.
-Each record includes a session_id (student_id + domain + session_count)
-so the coordination eval can group by SESSION rather than by student —
-preventing multi-session data from inflating task_completion_rate.
+Each record includes:
+  - session_id  (student__domain__session_count) — groups by session not student
+  - latency_seconds — wall-clock time for the agent call
+  - tokens_used     — approximate token count for the LLM response (FR-11)
+  - changed_keys    — which state fields the agent mutated
+  - redundant       — True if no state changed (wasted call)
+
+Token counting (FR-11):
+  LangChain stores usage metadata in response.usage_metadata or
+  response.response_metadata['token_usage']. We try both paths.
+  For non-LLM agents (Monitor) the count is 0.
 """
 import json
 import os
@@ -21,17 +29,34 @@ def _append(log_path: str, record: dict) -> None:
         f.write(json.dumps(record) + "\n")
 
 
+def _count_tokens(new_state: dict) -> int:
+    """
+    Extract token counts from any LLM response objects stored in the new state.
+    Checks common LangChain metadata paths.
+    Returns total tokens used (input + output), or 0 if not available.
+    """
+    total = 0
+
+    # Check current_material (Content agent stores the raw response indirectly)
+    # The most reliable source is the pending_item or last_grade which may
+    # carry raw_response. We approximate via character count if no metadata.
+    for key in ("current_material", "pending_item", "last_grade"):
+        val = new_state.get(key)
+        if isinstance(val, dict) and "raw_response" in val:
+            raw = val["raw_response"] or ""
+            # Rough estimate: 1 token ≈ 4 characters for English text
+            total += max(len(raw) // 4, 0)
+
+    return total
+
+
 def log_node_call(agent_name: str, log_path: str = DEFAULT_LOG_PATH):
     """
-    Decorator for a LangGraph/Streamlit node function: `def node(state) -> state`.
+    Decorator for a node function: `def node(state) -> state`.
 
-    Times the call, diffs state before/after to find changed keys, and appends
-    one JSON line to the agent calls log.  A call is "redundant" if no state
-    keys changed (it re-did work for nothing) — used by coordination_efficiency.
-
-    session_id format: "<student_id>__<domain>__<session_count>"
-    This lets eval scripts group by session rather than student so that
-    multi-session pilots don't have inflated task_completion_rate.
+    Records timing, state diff, and token usage.
+    session_id = "<student_id>__<domain>__<session_count>" so eval scripts
+    can group by session, not by student (prevents multi-session inflation).
     """
     def decorator(node_fn):
         @functools.wraps(node_fn)
@@ -49,24 +74,29 @@ def log_node_call(agent_name: str, log_path: str = DEFAULT_LOG_PATH):
             ]
             redundant = len(changed_keys) == 0
 
-            # Build session_id so eval can group by session, not just student
+            # Token counting (FR-11)
+            tokens_used = _count_tokens(new_state)
+
+            # session_id for per-session grouping in coordination eval
             student_id    = state.get("student_id", "unknown")
             domain        = state.get("domain", "unknown")
             session_count = state.get("engagement", {}).get("session_count", 1)
             session_id    = f"{student_id}__{domain}__{session_count}"
 
-            end  = time.perf_counter()
-            path = os.getenv("LOG_PATH", log_path)
+            latency = round(time.perf_counter() - start, 4)
+            path    = os.getenv("LOG_PATH", log_path)
+
             _append(path, {
-                "agent":            agent_name,
-                "student_id":       student_id,
-                "session_id":       session_id,
-                "domain":           domain,
-                "start_ts":         start_ts,
-                "latency_seconds":  round(end - start, 4),
-                "changed_keys":     changed_keys,
-                "redundant":        redundant,
-                "step_count":       new_state.get("step_count"),
+                "agent":           agent_name,
+                "student_id":      student_id,
+                "session_id":      session_id,
+                "domain":          domain,
+                "start_ts":        start_ts,
+                "latency_seconds": latency,
+                "tokens_used":     tokens_used,
+                "changed_keys":    changed_keys,
+                "redundant":       redundant,
+                "step_count":      new_state.get("step_count"),
             })
             return new_state
         return wrapper

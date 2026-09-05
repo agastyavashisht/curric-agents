@@ -19,6 +19,7 @@ Run:
 """
 
 import json
+import re
 import time
 import os
 import pandas as pd
@@ -37,7 +38,7 @@ from src.agents.content import content_agent
 from src.agents.monitor import monitor_agent
 from src.agents.assessment import assessment_prepare_agent, apply_grade
 from src.graph import advance_topic as _advance
-from src.db import log_assessment, save_pilot_score, get_pilot_scores, get_assessment_log
+from src.db import log_assessment, save_pilot_score, get_pilot_scores, get_assessment_log, save_survey_response, get_survey_responses
 
 # ── page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -46,7 +47,28 @@ st.set_page_config(
     layout="wide",
 )
 
-# ── domain registry ──────────────────────────────────────────────────────────
+# ── Pilot study settings ─────────────────────────────────────────────────────
+def _env(key: str, default: str = "") -> str:
+    """Read from st.secrets (Streamlit Cloud) or os.environ (.env / local)."""
+    try:
+        import streamlit as _st
+        val = _st.secrets.get(key, "")
+        if val:
+            return str(val)
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+PILOT_DOMAIN        = _env("PILOT_DOMAIN", "")
+ABLATION_MODES = {
+    "full":                   "Full system (adaptive planning + adaptive assessment)",
+    "no_adaptive_assessment": "No adaptive assessment (fixed difficulty questions)",
+    "no_adaptive_planning":   "No adaptive planning (fixed topic order)",
+    "planner_only":           "Planner only (adaptive order, templated content/assessment)",
+    "static":                 "Static baseline (fixed order + fixed questions)",
+}
+
+
 DOMAINS = {
     "python_programming":  "Python Programming",
     "ml_basics":           "ML Basics",
@@ -201,6 +223,14 @@ def _chart_group_means(pivot: pd.DataFrame) -> None:
     )
 
 
+def _save(ls: dict, phase: str) -> None:
+    """Save state and record the current phase for session resume."""
+    ls = dict(ls)
+    ls["current_phase"] = phase
+    st.session_state.ls = ls
+    save_state(DB_PATH, ls)
+
+
 def _grade(state: dict, answer: str) -> dict:
     """Grade then persist to assessment_log for QWK / ASAG evaluation."""
     item = state.get("pending_item") or {}
@@ -283,9 +313,25 @@ def _sidebar():
     if st.sidebar.button("📊 Researcher Dashboard"):
         st.session_state.phase = "dashboard"
         st.rerun()
-    if st.sidebar.button("🏠 Home"):
-        st.session_state.phase = "login"
-        st.rerun()
+    # Confirmation guard — prevents accidental navigation during survey/session
+    phase = st.session_state.get("phase", "login")
+    if phase not in ("login", "done", "dashboard"):
+        if st.sidebar.button("🏠 Home (⚠ ends session)"):
+            st.session_state["_confirm_home"] = True
+        if st.session_state.get("_confirm_home"):
+            st.sidebar.warning("This will end your current session.")
+            c1, c2 = st.sidebar.columns(2)
+            if c1.button("Yes, exit", key="confirm_home_yes"):
+                st.session_state["_confirm_home"] = False
+                st.session_state.phase = "login"
+                st.rerun()
+            if c2.button("Cancel", key="confirm_home_no"):
+                st.session_state["_confirm_home"] = False
+                st.rerun()
+    else:
+        if st.sidebar.button("🏠 Home"):
+            st.session_state.phase = "login"
+            st.rerun()
 
 
 def _show_history():
@@ -299,50 +345,162 @@ def _show_history():
 # ════════════════════════════════════════════════════════════════
 
 def phase_login():
-    st.title("🎓 CurricAgents — Pilot Study")
-    st.markdown(
-        "Multi-Agent LLM System for Autonomous Curriculum Planning and Adaptive Assessment  \n"
-        "*Each session: Pre-test → Adaptive Learning → Post-test*"
-    )
-    st.divider()
+    # ── Page layout ───────────────────────────────────────────────────────────
+    st.markdown("""
+        <style>
+        .login-card {
+            max-width: 480px;
+            margin: 2rem auto;
+            padding: 2.5rem 2rem 2rem 2rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            background: #fafafa;
+        }
+        .login-title { text-align: center; font-size: 2rem; margin-bottom: 0.2rem; }
+        .login-sub   { text-align: center; color: #555; margin-bottom: 1.5rem; }
+        </style>
+    """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        sid    = st.text_input("Student ID (anonymised)", "S01", max_chars=20)
-        domain = st.selectbox("Subject Domain", list(DOMAINS.keys()),
-                              format_func=lambda k: DOMAINS[k])
-        group  = st.radio("Study Group", ["experimental", "control"],
-                          help="Experimental = uses the AI system. Control = traditional study.")
-    with col2:
-        st.markdown("**Session Settings**")
-        topics = st.slider("Max topics this session", 1, 10, 4)
-        qpt    = st.slider("Questions per topic", 1, 5, 3)
-        st.info(
-            "**Flow:**\n"
-            "1. 10-question pre-test (no feedback)\n"
-            "2. Experimental: adaptive multi-agent lessons. Control: traditional corpus study.\n"
-            "3. 10-question post-test (no feedback)\n"
-            "4. Mastery (experimental) + learning gain summary"
+    # ── Centred card ──────────────────────────────────────────────────────────
+    _, card_col, _ = st.columns([1, 2, 1])
+    with card_col:
+        st.markdown('<p class="login-title">🎓 CurricAgents</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<p class="login-sub">Adaptive Learning System — Pilot Study<br>'
+            '<small>Chandigarh University · AIT-CSE</small></p>',
+            unsafe_allow_html=True,
         )
-        go = st.button("Start Session ▶", type="primary", use_container_width=True)
 
+        # ── Student ID ────────────────────────────────────────────────────────
+        sid = st.text_input(
+            "Your Pilot Study ID",
+            placeholder="e.g. PILOT-01",
+            max_chars=20,
+            help="You received this ID in the study consent form. Contact your researcher if unsure.",
+        )
+
+        # ── Domain — locked to PILOT_DOMAIN if set ────────────────────────────
+        if PILOT_DOMAIN and PILOT_DOMAIN in DOMAINS:
+            domain = PILOT_DOMAIN
+            st.info(f"📌 **Subject:** {DOMAINS[domain]}")
+        else:
+            domain = st.selectbox(
+                "Select your subject",
+                list(DOMAINS.keys()),
+                format_func=lambda k: DOMAINS[k],
+            )
+
+        # ── Group — auto-assigned from Student ID suffix, not shown to student ─
+        # Odd-numbered IDs (PILOT-01, 03 ...) → experimental
+        # Even-numbered IDs (PILOT-02, 04 ...) → control
+        nums = re.findall(r"\d+", sid.strip())
+        if nums:
+            group = "experimental" if int(nums[-1]) % 2 == 1 else "control"
+        else:
+            group = "experimental"
+
+    # ── Ablation — always "full" for pilot students (researcher sets in .env/secrets)
+        ablation = _env("ABLATION_MODE", "full")
+
+        # ── How it works ──────────────────────────────────────────────────────
+        with st.expander("ℹ️ How this study works"):
+            st.markdown("""
+**You will:**
+1. Answer a **10-question pre-test** (about 5 minutes, no feedback)
+2. Complete a **learning session** — the AI will teach topics and quiz you
+3. Answer a **10-question post-test** (about 5 minutes, no feedback)
+4. Fill in a **short questionnaire** (about 1 minute)
+
+**Total time:** approximately 45–60 minutes.
+
+**Your data:** only your anonymised Pilot ID is stored — never your name.
+You can stop at any time without penalty.
+""")
+
+        st.divider()
+        go = st.button("Begin Session ▶", type="primary", use_container_width=True)
+
+        if not sid.strip():
+            st.caption("Enter your Pilot Study ID to begin.")
+
+        # ── Researcher back-door (collapsed, password-gated) ──────────────────
+        with st.expander("🔬 Researcher / Admin access"):
+            r_pass = st.text_input("Researcher password", type="password", key="r_pass")
+            RESEARCHER_PASS = _env("RESEARCHER_PASSWORD", "admin123")
+            if r_pass == RESEARCHER_PASS:
+                st.success("Researcher mode unlocked")
+                r_domain   = st.selectbox("Domain override", list(DOMAINS.keys()),
+                                          format_func=lambda k: DOMAINS[k], key="r_dom")
+                r_group    = st.radio("Group override", ["experimental", "control"], key="r_grp")
+                r_ablation = st.selectbox(
+                    "Ablation mode", list(ABLATION_MODES.keys()),
+                    format_func=lambda k: ABLATION_MODES[k], key="r_abl"
+                )
+                r_topics = st.slider("Max topics", 1, 10, 4, key="r_top")
+                r_qpt    = st.slider("Questions per topic", 1, 5, 3, key="r_qpt")
+                if st.button("Start as Researcher ▶", key="r_go"):
+                    _start_session(
+                        sid.strip() or "RESEARCHER",
+                        r_domain, r_group, r_ablation, r_topics, r_qpt
+                    )
+            elif r_pass:
+                st.error("Incorrect password")
+
+    # ── Normal student start ──────────────────────────────────────────────────
     if go and sid.strip():
-        ls = load_state(DB_PATH, sid.strip(), domain)
-        ls["engagement"]["session_count"] = ls["engagement"].get("session_count", 0) + 1
-        if group == "experimental":
-            ls = planner_agent(ls)
+        _start_session(
+            sid.strip(), domain, group, ablation,
+            max_topics=int(_env("PILOT_MAX_TOPICS", "4")),
+            q_per_topic=int(_env("PILOT_QPT", "3")),
+        )
 
-        st.session_state.ls           = ls
-        st.session_state.domain       = domain
-        st.session_state.group        = group
-        st.session_state.max_topics   = topics
-        st.session_state.q_per_topic  = qpt
-        st.session_state.topics_done  = 0
-        st.session_state.q_done       = 0
-        st.session_state.history      = []
-        st.session_state.test_answers = {}
-        st.session_state.phase        = "pretest"
-        st.rerun()
+
+def _start_session(
+    sid: str,
+    domain: str,
+    group: str,
+    ablation: str,
+    max_topics: int = 4,
+    q_per_topic: int = 3,
+) -> None:
+    """Initialise session state and navigate to the correct phase."""
+    from src.memory.store import load_state
+    ls = load_state(DB_PATH, sid, domain)
+    ls = dict(ls)
+    ls["ablation_mode"] = ablation
+    ls["engagement"]["session_count"] = ls["engagement"].get("session_count", 0) + 1
+
+    # ── Session resume: if the student has a saved phase, restore it ──────────
+    saved_phase = ls.get("current_phase", "pretest")
+    # Only resume mid-session phases — never resume the done page itself
+    resumable = {"pretest", "gen_lesson", "answering", "gen_feedback", "posttest",
+                 "traditional"}
+    if saved_phase in resumable and ls.get("topic_sequence") is not None:
+        resume_phase = saved_phase
+    else:
+        resume_phase = "pretest"
+
+    # Run planner only for experimental group and only if starting fresh or replanning
+    if group == "experimental" and ablation != "static" and resume_phase == "pretest":
+        ls = planner_agent(ls)
+
+    st.session_state.ls           = ls
+    st.session_state.domain       = domain
+    st.session_state.group        = group
+    st.session_state.ablation     = ablation
+    st.session_state.max_topics   = max_topics
+    st.session_state.q_per_topic  = q_per_topic
+    st.session_state.topics_done  = ls["engagement"].get("topics_done", 0)
+    st.session_state.q_done       = 0
+    st.session_state.history      = []
+    st.session_state.test_answers = {}
+    st.session_state.survey_submitted = False
+    st.session_state.phase        = resume_phase
+
+    if resume_phase != "pretest":
+        st.toast(f"✅ Welcome back! Resuming from where you left off.", icon="🎓")
+
+    st.rerun()
 
 
 # ── pre-test ──────────────────────────────────────────────────────────────────
@@ -360,7 +518,7 @@ def phase_pretest():
         for q in questions:
             st.markdown(f"**{q['id'].upper()}. {q['prompt']}**")
             answers[q["id"]] = st.radio(
-                f"",
+                f"Answer for question {q['id'].upper()}",
                 options=list(range(len(q["options"]))),
                 format_func=lambda i, opts=q["options"]: f"{i}. {opts[i]}",
                 key=f"pre_{q['id']}",
@@ -384,18 +542,20 @@ def phase_pretest():
             n_correct=n_correct,
             n_total=len(questions),
             group_label=st.session_state.get("group", "experimental"),
+            ablation_mode=st.session_state.get("ablation", "full"),
             db_path=DB_PATH,
         )
         st.session_state.pretest_score = score_pct
         st.session_state.test_answers  = {}
-        # Pass score into state so Planner can bootstrap mastery (personalised start)
         ls = dict(ls)
         ls["pretest_score_pct"] = score_pct
         st.session_state.ls = ls
         if st.session_state.get("group") == "control":
+            _save(ls, "traditional")
             st.session_state.phase = "traditional"
         else:
-            ls = planner_agent(ls)   # re-run planner now that pretest_score_pct is set
+            ls = planner_agent(ls)
+            _save(ls, "gen_lesson")
             st.session_state.ls = ls
             st.session_state.phase = "gen_lesson"
         st.rerun()
@@ -439,7 +599,7 @@ def phase_posttest():
         for q in questions:
             st.markdown(f"**{q['id'].upper()}. {q['prompt']}**")
             answers[q["id"]] = st.radio(
-                f"",
+                f"Answer for question {q['id'].upper()}",
                 options=list(range(len(q["options"]))),
                 format_func=lambda i, opts=q["options"]: f"{i}. {opts[i]}",
                 key=f"post_{q['id']}",
@@ -463,9 +623,11 @@ def phase_posttest():
             n_correct=n_correct,
             n_total=len(questions),
             group_label=st.session_state.get("group", "experimental"),
+            ablation_mode=st.session_state.get("ablation", "full"),
             db_path=DB_PATH,
         )
         st.session_state.posttest_score = score_pct
+        _save(ls, "done")
         st.session_state.phase = "done"
         st.rerun()
 
@@ -474,8 +636,15 @@ def phase_posttest():
 def phase_gen_lesson():
     ls = st.session_state.ls
     _sidebar()
-    topic = ls["topic_pointer"]
-    # Show Bloom level badge
+    topic = ls.get("topic_pointer")
+
+    # Guard: no topic means all topics are complete — go to posttest
+    if not topic:
+        st.info("🎉 All topics complete! Moving to post-test.")
+        _save(ls, "posttest")
+        st.session_state.phase = "posttest"
+        st.rerun()
+
     bloom_plan  = {b["topic"]: b for b in ls.get("bloom_plan", [])}
     b_info      = bloom_plan.get(topic, {})
     bloom_badge = f" — _{b_info.get('bloom_level','').title()} level_" if b_info else ""
@@ -486,19 +655,30 @@ def phase_gen_lesson():
                f"Question style: **{b_info.get('bloom_level','standard')}** level")
     _show_history()
 
-    with st.spinner("Retrieving corpus and generating lesson…"):
-        ls = content_agent(ls)
+    from src.config import FallbackLLMError
+    try:
+        with st.spinner("Retrieving corpus and generating lesson…"):
+            ls = content_agent(ls)
+    except FallbackLLMError as e:
+        st.error(f"⚠️ The AI is temporarily unavailable (API error). Please wait 30 seconds and refresh the page.\n\n*{e}*")
+        _save(ls, "gen_lesson")
+        st.stop()
 
     mat    = ls.get("current_material", {})
-    text   = mat.get("explanation", "")
+    text   = mat.get("explanation", "") or "*(Lesson content could not be generated — please refresh.)*"
     ex     = mat.get("example", "")
     lesson = text + (f"\n\n**Example:**\n```\n{ex}\n```" if ex else "")
     st.session_state.history.append(("assistant", lesson))
 
-    with st.spinner("Preparing question…"):
-        ls = assessment_prepare_agent(ls)
+    try:
+        with st.spinner("Preparing question…"):
+            ls = assessment_prepare_agent(ls)
+    except FallbackLLMError as e:
+        st.error(f"⚠️ Could not generate a question (API error). Please refresh.\n\n*{e}*")
+        _save(ls, "gen_lesson")
+        st.stop()
 
-    st.session_state.ls    = ls
+    _save(ls, "answering")
     st.session_state.phase = "answering"
     st.rerun()
 
@@ -506,17 +686,26 @@ def phase_gen_lesson():
 def phase_answering():
     ls = st.session_state.ls
     _sidebar()
-    st.title(f"📘 {_label(ls['topic_pointer'])} — {DOMAINS[ls['domain']]}")
+    topic = ls.get("topic_pointer") or ""
+    st.title(f"📘 {_label(topic)} — {DOMAINS[ls['domain']]}")
     _show_history()
 
-    item    = ls.get("pending_item", {})
+    item    = ls.get("pending_item") or {}
     q_done  = st.session_state.q_done
     q_total = st.session_state.q_per_topic
 
+    # Guard: item missing or empty — regenerate
+    if not item or "format" not in item:
+        st.warning("Question not available — regenerating…")
+        _save(ls, "gen_lesson")
+        st.session_state.phase = "gen_lesson"
+        st.rerun()
+
     if item.get("format") == "mcq":
         options = item.get("options", [])
+        prompt  = item.get("prompt") or item.get("question") or "Answer this question:"
         with st.chat_message("assistant"):
-            st.markdown(f"**Question {q_done+1}/{q_total}:** {item['prompt']}")
+            st.markdown(f"**Question {q_done+1}/{q_total}:** {prompt}")
             chosen = st.radio(
                 "Select your answer:",
                 options=list(range(len(options))),
@@ -529,13 +718,14 @@ def phase_answering():
             )
         if submitted:
             st.session_state.history.append(
-                ("user", f"My answer: {chosen}. {options[chosen]}"))
+                ("user", f"My answer: {chosen}. {options[chosen] if options else ''}"))
             st.session_state.pending_answer = str(chosen)
             st.session_state.phase = "gen_feedback"
             st.rerun()
     else:
+        question = item.get("question") or item.get("prompt") or "Answer this question:"
         with st.chat_message("assistant"):
-            st.markdown(f"**Question {q_done+1}/{q_total}:** {item['question']}")
+            st.markdown(f"**Question {q_done+1}/{q_total}:** {question}")
         answer = st.chat_input("Type your answer…",
                                key=f"sa_{ls.get('step_count',0)}_{q_done}")
         if answer:
@@ -548,25 +738,35 @@ def phase_answering():
 def phase_gen_feedback():
     ls     = st.session_state.ls
     answer = st.session_state.pop("pending_answer", "")
-    topic  = ls["topic_pointer"]
+    topic  = ls.get("topic_pointer") or ""
 
-    # Guard: if no pending item exists, skip grading and go straight to next lesson
+    # Guard: if no pending item exists, skip grading
     if not ls.get("pending_item"):
+        _save(ls, "gen_lesson")
         st.session_state.phase = "gen_lesson"
         st.rerun()
 
-    with st.spinner("Grading…"):
-        ls = _grade(ls, answer)
-        ls = monitor_agent(ls)
+    from src.config import FallbackLLMError
+    try:
+        with st.spinner("Grading…"):
+            ls = _grade(ls, answer)
+            ls = monitor_agent(ls)
+    except FallbackLLMError as e:
+        st.error(f"⚠️ Grading failed (API error). Your answer was recorded but could not be scored.\n\n*{e}*")
+        # Give partial credit and move on rather than blocking the student
+        ls = dict(ls)
+        ls["last_grade"] = {"correct": None, "score": 0.5, "flagged": True,
+                            "justification": "Auto-grading failed — partial credit awarded."}
+        _save(ls, "gen_lesson")
 
     grade   = ls.get("last_grade", {})
     correct = grade.get("correct", False)
     new_m   = ls["mastery"].get(topic, 0.0)
     item    = ls.get("pending_item", {})
 
-    if correct:
+    if correct is True:
         fb = f"✅ **Correct!** Mastery of *{_label(topic)}* → **{new_m:.0%}**"
-    else:
+    elif correct is False:
         fb = f"❌ **Incorrect.** Mastery of *{_label(topic)}* → **{new_m:.0%}**"
         if item.get("format") == "mcq":
             ci  = item.get("correct_index", 0)
@@ -576,27 +776,39 @@ def phase_gen_feedback():
         just = grade.get("justification", "")
         if just:
             fb += f"\n\n*Feedback:* {just}"
+    else:
+        fb = f"📝 *Answer recorded.* Mastery of *{_label(topic)}* → **{new_m:.0%}**"
+        just = grade.get("justification", "")
+        if just:
+            fb += f"\n\n*Feedback:* {just}"
+
     if ls.get("replan_flag"):
         fb += "\n\n⚠️ *Low mastery detected — re-sequencing topics.*"
 
     st.session_state.history.append(("assistant", fb))
-    save_state(DB_PATH, ls)
+    _save(ls, "gen_feedback")
 
     st.session_state.q_done += 1
     more_qs = st.session_state.q_done < st.session_state.q_per_topic
     replan  = ls.get("replan_flag", False)
 
     if more_qs and not replan:
-        with st.spinner("Preparing next question…"):
-            ls = assessment_prepare_agent(ls)
-        st.session_state.ls    = ls
+        try:
+            with st.spinner("Preparing next question…"):
+                ls = assessment_prepare_agent(ls)
+        except FallbackLLMError:
+            pass   # fall through to next topic if question generation fails
+        _save(ls, "answering")
         st.session_state.phase = "answering"
     else:
         ls = _advance(ls)
         if replan and ls.get("topic_sequence"):
-            # Keep replan_flag=True so planner's session_history records it was a replan.
-            # planner_node itself clears the flag at the end.
-            ls = planner_agent(ls)
+            try:
+                ls = planner_agent(ls)
+            except FallbackLLMError:
+                ls = dict(ls)
+                ls["replan_flag"] = False   # clear flag so we don't loop
+        _save(ls, "gen_lesson")
         st.session_state.ls          = ls
         st.session_state.topics_done += 1
         st.session_state.q_done      = 0
@@ -604,7 +816,7 @@ def phase_gen_feedback():
         no_topics = not ls.get("topic_sequence")
         quota     = st.session_state.topics_done >= st.session_state.max_topics
         if no_topics or quota:
-            save_state(DB_PATH, ls)
+            _save(ls, "posttest")
             st.session_state.phase = "posttest"
         else:
             st.session_state.phase = "gen_lesson"
@@ -619,8 +831,17 @@ def phase_done():
     st.title("🎉 Session Complete!")
     st.markdown(f"**Student:** `{ls['student_id']}` | **Domain:** {DOMAINS[ls['domain']]}")
 
+    # ── Issue 6: read scores from DB as fallback (works after browser refresh) ─
     pre  = st.session_state.get("pretest_score")
     post = st.session_state.get("posttest_score")
+    if pre is None or post is None:
+        stored = get_pilot_scores(DB_PATH)
+        for s in stored:
+            if s["student_id"] == ls["student_id"] and s["domain"] == ls["domain"]:
+                if s["test_type"] == "pretest"  and pre  is None:
+                    pre  = s["score_pct"]
+                if s["test_type"] == "posttest" and post is None:
+                    post = s["score_pct"]
     if pre is not None and post is not None:
         gain = (post - pre) / (100 - pre) if pre < 100 else 0.0
         col1, col2, col3 = st.columns(3)
@@ -675,10 +896,57 @@ def phase_done():
         st.info("No mastery yet (typical for the control group, which only studies notes).")
 
     st.divider()
+    # ── Issue 9: clear completion message for students ────────────────────────
+    st.success(
+        "✅ **Your session is now complete.** Thank you for participating!\n\n"
+        "Please fill in the short questionnaire below, then let the researcher know you are done."
+    )
+    # ── Gap 6: Post-study Likert survey (paper §VII-C) ────────────────────────
+    if not st.session_state.get("survey_submitted"):
+        st.subheader("📋 Post-Study Questionnaire")
+        st.markdown(
+            "Please rate your experience on a scale of **1 (strongly disagree) "
+            "to 5 (strongly agree)**. This takes ~1 minute and helps us improve the system."
+        )
+        group = st.session_state.get("group", "experimental")
+        with st.form("survey_form"):
+            if group == "experimental":
+                q1 = st.slider("The system was easy to use.",                           1, 5, 3)
+                q2 = st.slider("The explanations and examples were helpful.",            1, 5, 3)
+                q3 = st.slider("The system felt personalised to my level.",             1, 5, 3)
+                q4 = st.slider("I would recommend this system to a classmate.",        1, 5, 3)
+                q5 = st.slider("I preferred this system over studying notes alone.",   1, 5, 3)
+            else:
+                q1 = st.slider("The study materials were easy to follow.",              1, 5, 3)
+                q2 = st.slider("The course notes were helpful.",                        1, 5, 3)
+                q3 = st.slider("The materials were appropriate for my level.",         1, 5, 3)
+                q4 = st.slider("I would recommend these materials to a classmate.",    1, 5, 3)
+                q5 = st.slider("I preferred studying these notes over an AI system.",  1, 5, 3)
+            comments = st.text_area("Any other comments? (optional)", height=80)
+            submit_survey = st.form_submit_button("Submit Survey ✓", type="primary")
+
+        if submit_survey:
+            save_survey_response(
+                student_id=ls["student_id"],
+                domain=ls["domain"],
+                group_label=group,
+                q1_ease=q1, q2_helpful=q2, q3_adaptive=q3,
+                q4_recommend=q4, q5_prefer=q5,
+                comments=comments,
+                db_path=DB_PATH,
+            )
+            st.session_state.survey_submitted = True
+            st.success("✅ Survey submitted. Thank you for participating!")
+            st.rerun()
+    else:
+        st.success("✅ Survey already submitted. Thank you!")
+
+    st.divider()
     if st.button("New Session / New Domain", type="primary"):
         for k in ["ls", "phase", "history", "topics_done", "q_done",
                   "max_topics", "q_per_topic", "pending_answer",
-                  "pretest_score", "posttest_score", "test_answers"]:
+                  "pretest_score", "posttest_score", "test_answers",
+                  "survey_submitted"]:
             st.session_state.pop(k, None)
         st.rerun()
 
@@ -689,10 +957,42 @@ def phase_dashboard():
     st.title("📊 Researcher Dashboard")
     st.caption("Live metrics from the pilot database — refreshes on page reload.")
 
+    # ── Supabase connection status ────────────────────────────────────────────
+    from src.online_db import test_connection, is_configured
+    if is_configured():
+        ok, msg = test_connection()
+        if ok:
+            st.success(f"🟢 Supabase connected — reading live data from all students | {msg}")
+        else:
+            st.warning(f"🟡 Supabase offline — showing local data only | {msg}")
+        if st.button("🔌 Run full Supabase connection test"):
+            st.session_state.phase = "supabase_test"
+            st.rerun()
+    else:
+        with st.expander("⚪ Supabase not configured — click to set up online database"):
+            st.markdown("""
+**Steps to connect:**
+
+1. Go to your Supabase dashboard → **SQL Editor**
+2. Paste the contents of `src/supabase_schema.sql` and click **Run**
+3. Go to **Settings → API** → copy the **anon/public** key
+4. Add these two lines to your `.env` file:
+```
+SUPABASE_URL=https://zmhadthvmuxkivxeehvz.supabase.co
+SUPABASE_ANON_KEY=<paste your anon key here>
+```
+5. Restart the app
+
+Until configured, all data is stored locally in `results/learner_state.db`.
+""")
+            if st.button("🔄 Test connection now (after adding keys)"):
+                st.rerun()
+
     import pandas as pd
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Learning Gain", "📝 Assessment Log", "🤖 Agent Coordination", "⬇ Export CSVs"
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📈 Learning Gain", "📝 Assessment Log", "🤖 Agent Coordination",
+        "⬇ Export CSVs", "📋 Survey Responses"
     ])
 
     # ── tab 1: learning gain ──────────────────────────────────────────────────
@@ -961,6 +1261,16 @@ def phase_dashboard():
                 st.info("No assessment log yet.")
 
         st.divider()
+        st.markdown("**Survey responses (see Survey tab for full view):**")
+        sdata = get_survey_responses(DB_PATH)
+        if sdata:
+            st.download_button(
+                f"⬇ survey_responses.csv  ({len(sdata)} rows)",
+                data=pd.DataFrame(sdata).to_csv(index=False),
+                file_name="survey_responses.csv",
+                mime="text/csv",
+            )
+        st.divider()
         st.markdown("**Run all metrics from terminal:**")
         st.code("python -m eval.run_all_metrics", language="bash")
         st.markdown("Or individually:")
@@ -972,20 +1282,144 @@ def phase_dashboard():
             language="bash",
         )
 
+    # ── tab 5: survey responses ───────────────────────────────────────────────
+    with tab5:
+        st.subheader("Post-Study Survey Responses")
+        sdata = get_survey_responses(DB_PATH)
+        if not sdata:
+            st.info("No survey responses yet. Students submit the survey at the end of phase_done.")
+        else:
+            import pandas as pd
+            sdf = pd.DataFrame(sdata)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Responses", len(sdf))
+            c2.metric("Experimental", int((sdf["group"] == "experimental").sum()))
+            c3.metric("Control",      int((sdf["group"] == "control").sum()))
+
+            # Mean Likert scores per question
+            q_cols = {
+                "q1_ease":      "Q1: Ease of use",
+                "q2_helpful":   "Q2: Helpful",
+                "q3_adaptive":  "Q3: Felt personalised",
+                "q4_recommend": "Q4: Would recommend",
+                "q5_prefer":    "Q5: Preferred over traditional",
+            }
+            means = {label: round(sdf[col].mean(), 2)
+                     for col, label in q_cols.items() if col in sdf.columns}
+            if means:
+                st.subheader("Mean Likert scores (1=strongly disagree, 5=strongly agree)")
+                mean_df = pd.DataFrame(
+                    list(means.items()), columns=["Question", "Mean (1–5)"]
+                )
+                st.dataframe(mean_df, use_container_width=True, hide_index=True)
+                _chart_bars(mean_df, x="Question", y="Mean (1–5)",
+                            title="Survey mean scores", y_domain=[1, 5], height=300)
+
+            st.subheader("All responses")
+            show_s = ["student_id", "group", "q1_ease", "q2_helpful",
+                      "q3_adaptive", "q4_recommend", "q5_prefer", "comments", "timestamp"]
+            st.dataframe(sdf[[c for c in show_s if c in sdf.columns]],
+                         use_container_width=True)
+
+            # Export
+            st.download_button(
+                f"⬇ survey_responses.csv  ({len(sdf)} rows)",
+                data=sdf.to_csv(index=False),
+                file_name="survey_responses.csv",
+                mime="text/csv",
+            )
+
+
+def phase_supabase_test():
+    """Hidden diagnostic page — go to ?phase=supabase_test in browser."""
+    st.title("🔌 Supabase Connection Test")
+
+    from src.online_db import (
+        is_configured, test_connection,
+        save_pilot_score_online, get_pilot_scores_online,
+        save_learner_state_online, load_learner_state_online,
+    )
+
+    # Config check
+    st.subheader("1. Configuration")
+    url  = os.getenv("SUPABASE_URL", "")
+    key  = os.getenv("SUPABASE_ANON_KEY", "")
+    st.write(f"SUPABASE_URL:      `{url or '❌ not set'}`")
+    st.write(f"SUPABASE_ANON_KEY: `{'✅ set (' + key[:20] + '...)' if key else '❌ not set'}`")
+    st.write(f"is_configured():   `{is_configured()}`")
+
+    # Connection test
+    st.subheader("2. Connection Test")
+    with st.spinner("Connecting to Supabase..."):
+        ok, msg = test_connection()
+    if ok:
+        st.success(f"✅ {msg}")
+    else:
+        st.error(f"❌ {msg}")
+        st.markdown("""
+**To fix:**
+1. Go to Supabase → **SQL Editor** → paste `src/supabase_schema.sql` → **Run**
+2. Go to **Settings → API** → copy the **anon/public** key
+3. Add `SUPABASE_ANON_KEY=eyJ...` to your `.env` file
+4. Restart the app
+""")
+        if st.button("Back to Dashboard"):
+            st.session_state.phase = "dashboard"
+            st.rerun()
+        return
+
+    # Write test
+    st.subheader("3. Write Test")
+    with st.spinner("Writing test data to Supabase..."):
+        w1 = save_pilot_score_online("TEST-UI", "python_programming", "pretest",
+                                      72.0, 7, 10, "experimental")
+        from src.state import new_state
+        s = new_state("TEST-UI", "python_programming")
+        s["mastery"]["variables_datatypes"] = 0.75
+        w2 = save_learner_state_online(s)
+
+    st.write(f"pilot_scores write:    {'✅ OK' if w1 else '❌ FAIL'}")
+    st.write(f"learner_state write:   {'✅ OK' if w2 else '❌ FAIL'}")
+
+    # Read test
+    st.subheader("4. Read Test")
+    with st.spinner("Reading back from Supabase..."):
+        scores   = get_pilot_scores_online()
+        loaded_s = load_learner_state_online("TEST-UI", "python_programming")
+
+    test_row    = next((r for r in scores if r["student_id"] == "TEST-UI"), None)
+    mastery_ok  = loaded_s and loaded_s.get("mastery", {}).get("variables_datatypes") == 0.75
+
+    st.write(f"pilot_scores read:     {'✅ found row' if test_row else '❌ row not found'}")
+    st.write(f"learner_state read:    {'✅ mastery=0.75 round-trip OK' if mastery_ok else '❌ mastery not found'}")
+    st.write(f"Total scores in DB:    {len(scores)} rows")
+
+    if w1 and w2 and test_row and mastery_ok:
+        st.balloons()
+        st.success("🎉 Supabase is fully working! All student data will sync online automatically.")
+    else:
+        st.warning("Some tests failed. Check the errors above.")
+
+    st.divider()
+    if st.button("← Back to Dashboard"):
+        st.session_state.phase = "dashboard"
+        st.rerun()
+
 
 # ════════════════════════════════════════════════════════════════
 #  ROUTER
 # ════════════════════════════════════════════════════════════════
 PHASES = {
-    "login":        phase_login,
-    "pretest":      phase_pretest,
-    "traditional":  phase_traditional,
-    "gen_lesson":   phase_gen_lesson,
-    "answering":    phase_answering,
-    "gen_feedback": phase_gen_feedback,
-    "posttest":     phase_posttest,
-    "done":         phase_done,
-    "dashboard":    phase_dashboard,
+    "login":          phase_login,
+    "pretest":        phase_pretest,
+    "traditional":    phase_traditional,
+    "gen_lesson":     phase_gen_lesson,
+    "answering":      phase_answering,
+    "gen_feedback":   phase_gen_feedback,
+    "posttest":       phase_posttest,
+    "done":           phase_done,
+    "dashboard":      phase_dashboard,
+    "supabase_test":  phase_supabase_test,
 }
 
 if "phase" not in st.session_state:

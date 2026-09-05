@@ -116,10 +116,19 @@ def _grade_short_answer(llm, rubric, student_answer):
         reference_answer=rubric["reference_answer"],
         student_answer=student_answer,
     ))
-    raw = extract_content(resp)
-    raw = _strip_fences(raw)
+    raw = _strip_fences(extract_content(resp))
 
-    llm_result = json.loads(raw)
+    try:
+        llm_result = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        # Malformed LLM JSON — return a safe partial-credit fallback
+        print(f"[WARNING] _grade_short_answer: JSON parse failed. raw={raw[:200]}")
+        llm_result = {
+            "score": rubric["max_score"] * 0.5,
+            "justification": "Auto-grading could not parse the model response. Score defaulted to 50%.",
+            "misconception_tag": "parse_error",
+        }
+
     llm_result["raw_response"] = raw
 
     # Embedding cross-check using pure-numpy TF-IDF cosine (no scipy/sentence-transformers)
@@ -155,11 +164,17 @@ def prepare_item(state: LearnerState) -> LearnerState:
         rubric = _load_rubric(state["domain"], topic)
         if rubric is not None:
             state["pending_item"] = {
-                "format": "short_answer",
+                "format":   "short_answer",
                 "question": rubric["question"],
-                "rubric": rubric,
+                "rubric":   rubric,
             }
             return state
+        # No rubric for this topic — fall through to MCQ
+        print(f"[ASSESSMENT] No rubric for '{topic}' in domain '{state['domain']}' "
+              f"— generating MCQ instead.")
+        state["session_history"] = state.get("session_history", []) + [
+            {"event": "rubric_missing_mcq_substituted", "topic": topic, "domain": state["domain"]}
+        ]
 
     item = _generate_mcq(gen_llm, topic, objective, bloom_level)
     state["pending_item"] = {"format": "mcq", **item}
