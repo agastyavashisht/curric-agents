@@ -1,16 +1,186 @@
 {
   "form": "A",
   "domain": "python_programming",
-  "questions": [
-    {"id": "q1", "topic": "variables_datatypes", "prompt": "What is the type of the value produced by `7 / 2` in Python 3?", "options": ["int", "float", "str", "bool"], "correct_index": 1},
-    {"id": "q2", "topic": "operators_expressions", "prompt": "What does `3 == 3 and 5 > 10` evaluate to?", "options": ["True", "False", "Error", "None"], "correct_index": 1},
-    {"id": "q3", "topic": "strings", "prompt": "What does `'hello'[1:4]` return?", "options": ["'hell'", "'ell'", "'ello'", "'h'"], "correct_index": 1},
-    {"id": "q4", "topic": "control_flow", "prompt": "Which keyword is used for an alternative condition after `if`?", "options": ["else if", "elseif", "elif", "elsif"], "correct_index": 2},
-    {"id": "q5", "topic": "loops", "prompt": "How many times does `for i in range(3):` execute its body?", "options": ["2", "3", "4", "Infinite"], "correct_index": 1},
-    {"id": "q6", "topic": "lists_tuples", "prompt": "Which of these is immutable?", "options": ["list", "dict", "tuple", "set"], "correct_index": 2},
-    {"id": "q7", "topic": "dictionaries_sets", "prompt": "What does `{'a': 1, 'b': 2}.keys()` return an iterable of?", "options": ["Values", "Keys", "Tuples", "Indices"], "correct_index": 1},
-    {"id": "q8", "topic": "functions", "prompt": "What is printed by `def f(x=5): return x*2` then `print(f())`?", "options": ["5", "10", "None", "Error"], "correct_index": 1},
-    {"id": "q9", "topic": "exceptions", "prompt": "Which block always runs, whether or not an exception occurred?", "options": ["try", "except", "finally", "raise"], "correct_index": 2},
-    {"id": "q10", "topic": "oop_basics", "prompt": "Which method is automatically called when a class instance is created?", "options": ["__str__", "__init__", "__new__", "__call__"], "correct_index": 1}
+  "sections": [
+    {
+      "topic": "variables_datatypes",
+      "title": "Section 1: Variables & Data Types",
+      "questions": [
+        {
+          "id": "v1",
+          "prompt": "What data type does Python assign to the value `3.14`?",
+          "options": ["int", "float", "str", "bool"],
+          "correct_index": 1
+        },
+        {
+          "id": "v2",
+          "prompt": "Which of the following is a valid variable name in Python?",
+          "options": ["2name", "my_name", "my-name", "class"],
+          "correct_index": 1
+        },
+        {
+          "id": "v3",
+          "prompt": "What is the result of `int('42')`?",
+          "options": ["'42'", "42", "42.0", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "v4",
+          "prompt": "What is the output of `print(type(True))`?",
+          "options": ["<class 'int'>", "<class 'bool'>", "<class 'str'>", "<class 'float'>"],
+          "correct_index": 1
+        },
+        {
+          "id": "v5",
+          "prompt": "What is the result of `7 / 2` in Python 3?",
+          "options": ["3", "3.5", "4", "Error"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "topic": "control_flow",
+      "title": "Section 2: Control Flow",
+      "questions": [
+        {
+          "id": "c1",
+          "prompt": "Which keyword handles an alternative condition after `if`?",
+          "options": ["else if", "elsif", "elif", "otherwise"],
+          "correct_index": 2
+        },
+        {
+          "id": "c2",
+          "prompt": "What does `3 == 3 and 5 > 10` evaluate to?",
+          "options": ["True", "False", "Error", "None"],
+          "correct_index": 1
+        },
+        {
+          "id": "c3",
+          "prompt": "What is printed?\n```\nx = 7\nif x > 10:\n    print('A')\nelif x > 5:\n    print('B')\nelse:\n    print('C')\n```",
+          "options": ["A", "B", "C", "Nothing"],
+          "correct_index": 1
+        },
+        {
+          "id": "c4",
+          "prompt": "What does `not True` evaluate to?",
+          "options": ["True", "False", "None", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "c5",
+          "prompt": "Which operator checks if two values are NOT equal?",
+          "options": ["==", "!=", ">=", "<>"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "topic": "loops",
+      "title": "Section 3: Loops",
+      "questions": [
+        {
+          "id": "l1",
+          "prompt": "How many times does `for i in range(3):` execute its body?",
+          "options": ["2", "3", "4", "Infinite"],
+          "correct_index": 1
+        },
+        {
+          "id": "l2",
+          "prompt": "What does `range(1, 6)` produce?",
+          "options": ["1 to 5", "1 to 6", "0 to 5", "0 to 6"],
+          "correct_index": 0
+        },
+        {
+          "id": "l3",
+          "prompt": "Which keyword exits a loop immediately?",
+          "options": ["exit", "stop", "break", "return"],
+          "correct_index": 2
+        },
+        {
+          "id": "l4",
+          "prompt": "What is printed?\n```\nfor i in range(3):\n    print(i)\n```",
+          "options": ["0 1 2", "1 2 3", "0 1 2 3", "1 2"],
+          "correct_index": 0
+        },
+        {
+          "id": "l5",
+          "prompt": "Which keyword skips to the next iteration without exiting the loop?",
+          "options": ["skip", "pass", "next", "continue"],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "topic": "functions",
+      "title": "Section 4: Functions",
+      "questions": [
+        {
+          "id": "f1",
+          "prompt": "What keyword is used to define a function in Python?",
+          "options": ["func", "define", "def", "function"],
+          "correct_index": 2
+        },
+        {
+          "id": "f2",
+          "prompt": "What is printed by `def greet(name='World'): print('Hello', name)` then `greet()`?",
+          "options": ["Hello", "Hello World", "Hello name", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "f3",
+          "prompt": "What does `return` do inside a function?",
+          "options": ["Prints the value", "Exits the program", "Sends a value back to the caller", "Repeats the function"],
+          "correct_index": 2
+        },
+        {
+          "id": "f4",
+          "prompt": "What is the output?\n```\ndef add(a, b):\n    return a + b\nprint(add(3, 4))\n```",
+          "options": ["3", "4", "7", "Error"],
+          "correct_index": 2
+        },
+        {
+          "id": "f5",
+          "prompt": "A variable defined inside a function is:",
+          "options": ["Global", "Local", "Static", "Public"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "topic": "oop_basics",
+      "title": "Section 5: OOP Basics",
+      "questions": [
+        {
+          "id": "o1",
+          "prompt": "Which method is automatically called when a class instance is created?",
+          "options": ["__str__", "__init__", "__new__", "__start__"],
+          "correct_index": 1
+        },
+        {
+          "id": "o2",
+          "prompt": "What is the first parameter of every instance method in a class?",
+          "options": ["this", "cls", "self", "me"],
+          "correct_index": 2
+        },
+        {
+          "id": "o3",
+          "prompt": "What keyword is used to create a class in Python?",
+          "options": ["object", "struct", "class", "type"],
+          "correct_index": 2
+        },
+        {
+          "id": "o4",
+          "prompt": "What does inheritance allow a child class to do?",
+          "options": ["Delete the parent class", "Reuse methods and attributes from the parent", "Copy only the attributes", "Run faster than the parent"],
+          "correct_index": 1
+        },
+        {
+          "id": "o5",
+          "prompt": "What is the output?\n```\nclass Dog:\n    def __init__(self, name):\n        self.name = name\nd = Dog('Rex')\nprint(d.name)\n```",
+          "options": ["Dog", "Rex", "self", "Error"],
+          "correct_index": 1
+        }
+      ]
+    }
   ]
 }

@@ -1,16 +1,186 @@
 {
   "form": "B",
   "domain": "python_programming",
-  "questions": [
-    {"id": "q1", "topic": "variables_datatypes", "prompt": "What is the type of the value produced by `int('7')`?", "options": ["str", "int", "float", "bool"], "correct_index": 1},
-    {"id": "q2", "topic": "operators_expressions", "prompt": "What does `4 != 4 or 2 < 5` evaluate to?", "options": ["True", "False", "Error", "None"], "correct_index": 0},
-    {"id": "q3", "topic": "strings", "prompt": "What does `'python'[2:5]` return?", "options": ["'tho'", "'yth'", "'thon'", "'py'"], "correct_index": 0},
-    {"id": "q4", "topic": "control_flow", "prompt": "What is printed by `x = 4` then `if x > 5: print('a')` `elif x > 2: print('b')` `else: print('c')`?", "options": ["a", "b", "c", "Nothing"], "correct_index": 1},
-    {"id": "q5", "topic": "loops", "prompt": "How many times does `for i in range(2, 6, 2):` execute its body?", "options": ["1", "2", "3", "4"], "correct_index": 1},
-    {"id": "q6", "topic": "lists_tuples", "prompt": "Which method adds an item to the end of a list?", "options": ["insert()", "append()", "extend()", "add()"], "correct_index": 1},
-    {"id": "q7", "topic": "dictionaries_sets", "prompt": "What data structure guarantees all elements are unique?", "options": ["list", "tuple", "set", "str"], "correct_index": 2},
-    {"id": "q8", "topic": "functions", "prompt": "What is printed by `def f(*args): return len(args)` then `print(f(1,2,3))`?", "options": ["1", "2", "3", "Error"], "correct_index": 2},
-    {"id": "q9", "topic": "exceptions", "prompt": "Which keyword is used to manually trigger an exception?", "options": ["throw", "raise", "except", "error"], "correct_index": 1},
-    {"id": "q10", "topic": "oop_basics", "prompt": "What does `super().__init__()` typically do inside a subclass?", "options": ["Deletes the parent class", "Calls the parent class's constructor", "Creates a new class", "Overrides all methods"], "correct_index": 1}
+  "sections": [
+    {
+      "topic": "variables_datatypes",
+      "title": "Section 1: Variables & Data Types",
+      "questions": [
+        {
+          "id": "v1",
+          "prompt": "What is the output of `print(type(42))`?",
+          "options": ["<class 'float'>", "<class 'str'>", "<class 'int'>", "<class 'bool'>"],
+          "correct_index": 2
+        },
+        {
+          "id": "v2",
+          "prompt": "Which of the following correctly assigns a string to a variable?",
+          "options": ["name = 42", "name = True", "name = 'Alice'", "name = [1,2]"],
+          "correct_index": 2
+        },
+        {
+          "id": "v3",
+          "prompt": "What is the result of `str(100)`?",
+          "options": ["100", "'100'", "Error", "True"],
+          "correct_index": 1
+        },
+        {
+          "id": "v4",
+          "prompt": "What is the value of `10 // 3`?",
+          "options": ["3.33", "3", "4", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "v5",
+          "prompt": "Which of these is a boolean value in Python?",
+          "options": ["'True'", "1.0", "True", "yes"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "topic": "control_flow",
+      "title": "Section 2: Control Flow",
+      "questions": [
+        {
+          "id": "c1",
+          "prompt": "What is printed?\n```\nx = 3\nif x > 5:\n    print('big')\nelse:\n    print('small')\n```",
+          "options": ["big", "small", "3", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "c2",
+          "prompt": "What does `5 > 3 or 2 > 10` evaluate to?",
+          "options": ["False", "True", "None", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "c3",
+          "prompt": "How many branches can a single if-elif-else chain have?",
+          "options": ["Exactly 2", "Exactly 3", "Any number", "Only 1"],
+          "correct_index": 2
+        },
+        {
+          "id": "c4",
+          "prompt": "What does `not False` evaluate to?",
+          "options": ["False", "None", "True", "Error"],
+          "correct_index": 2
+        },
+        {
+          "id": "c5",
+          "prompt": "Which of these is a valid comparison operator in Python?",
+          "options": ["=>", "=<", ">=", "=!"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "topic": "loops",
+      "title": "Section 3: Loops",
+      "questions": [
+        {
+          "id": "l1",
+          "prompt": "How many times does `for i in range(2, 6):` execute?",
+          "options": ["2", "3", "4", "6"],
+          "correct_index": 2
+        },
+        {
+          "id": "l2",
+          "prompt": "What is the output?\n```\ni = 0\nwhile i < 3:\n    i += 1\nprint(i)\n```",
+          "options": ["0", "2", "3", "4"],
+          "correct_index": 2
+        },
+        {
+          "id": "l3",
+          "prompt": "What does `range(0, 10, 2)` generate?",
+          "options": ["0 2 4 6 8", "0 2 4 6 8 10", "2 4 6 8 10", "0 1 2 3 4"],
+          "correct_index": 0
+        },
+        {
+          "id": "l4",
+          "prompt": "Which loop is best when you don't know how many times to repeat?",
+          "options": ["for loop", "while loop", "do loop", "repeat loop"],
+          "correct_index": 1
+        },
+        {
+          "id": "l5",
+          "prompt": "What does `break` do inside a loop?",
+          "options": ["Skips current iteration", "Exits the loop immediately", "Pauses the loop", "Restarts the loop"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "topic": "functions",
+      "title": "Section 4: Functions",
+      "questions": [
+        {
+          "id": "f1",
+          "prompt": "What is the output?\n```\ndef square(n):\n    return n * n\nprint(square(5))\n```",
+          "options": ["5", "10", "25", "Error"],
+          "correct_index": 2
+        },
+        {
+          "id": "f2",
+          "prompt": "What does `*args` allow a function to accept?",
+          "options": ["Only keyword arguments", "Any number of positional arguments", "A list argument", "No arguments"],
+          "correct_index": 1
+        },
+        {
+          "id": "f3",
+          "prompt": "If a function has no `return` statement, what does it return?",
+          "options": ["0", "False", "None", "Error"],
+          "correct_index": 2
+        },
+        {
+          "id": "f4",
+          "prompt": "Which of these correctly calls a function named `calc` with argument `10`?",
+          "options": ["calc[10]", "call calc(10)", "calc(10)", "def calc(10)"],
+          "correct_index": 2
+        },
+        {
+          "id": "f5",
+          "prompt": "What is a variable defined outside all functions called?",
+          "options": ["Local variable", "Private variable", "Static variable", "Global variable"],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "topic": "oop_basics",
+      "title": "Section 5: OOP Basics",
+      "questions": [
+        {
+          "id": "o1",
+          "prompt": "What is the purpose of `__init__` in a class?",
+          "options": ["To destroy the object", "To initialise the object's attributes when created", "To print the object", "To compare two objects"],
+          "correct_index": 1
+        },
+        {
+          "id": "o2",
+          "prompt": "What does `super().__init__()` do inside a child class?",
+          "options": ["Deletes the parent", "Calls the parent class constructor", "Creates a new class", "Prints the parent class name"],
+          "correct_index": 1
+        },
+        {
+          "id": "o3",
+          "prompt": "What is an instance of a class called?",
+          "options": ["A function", "A method", "An object", "A module"],
+          "correct_index": 2
+        },
+        {
+          "id": "o4",
+          "prompt": "What is the output?\n```\nclass Cat:\n    def speak(self):\n        return 'Meow'\nc = Cat()\nprint(c.speak())\n```",
+          "options": ["Cat", "speak", "Meow", "Error"],
+          "correct_index": 2
+        },
+        {
+          "id": "o5",
+          "prompt": "Which term describes a child class taking on attributes of a parent class?",
+          "options": ["Encapsulation", "Polymorphism", "Inheritance", "Abstraction"],
+          "correct_index": 2
+        }
+      ]
+    }
   ]
 }

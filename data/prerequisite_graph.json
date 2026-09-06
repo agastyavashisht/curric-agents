@@ -5,50 +5,21 @@
       "prerequisites": [],
       "objective": "Understand variables, primitive data types (int, float, str, bool), and type conversion in Python."
     },
-    "operators_expressions": {
-      "prerequisites": ["variables_datatypes"],
-      "objective": "Apply arithmetic, comparison, and logical operators to build and evaluate expressions."
-    },
-    "strings": {
-      "prerequisites": ["variables_datatypes"],
-      "objective": "Manipulate and format strings using indexing, slicing, and built-in string methods."
-    },
     "control_flow": {
-      "prerequisites": ["operators_expressions"],
-      "objective": "Use if / elif / else statements to control the flow of a program based on conditions."
+      "prerequisites": ["variables_datatypes"],
+      "objective": "Use if / elif / else statements and comparison operators to control program flow based on conditions."
     },
     "loops": {
       "prerequisites": ["control_flow"],
-      "objective": "Use for and while loops to repeat operations over sequences and conditions."
-    },
-    "lists_tuples": {
-      "prerequisites": ["loops"],
-      "objective": "Store and manipulate ordered collections of data using lists and tuples."
-    },
-    "dictionaries_sets": {
-      "prerequisites": ["lists_tuples"],
-      "objective": "Store and manipulate key-value pairs and unique-element collections using dicts and sets."
+      "objective": "Use for and while loops with range() to repeat operations and iterate over sequences."
     },
     "functions": {
-      "prerequisites": ["control_flow"],
-      "objective": "Define reusable functions with parameters, return values, and default arguments."
-    },
-    "scope_recursion": {
-      "prerequisites": ["functions"],
-      "objective": "Understand variable scope (local vs. global) and write simple recursive functions."
-    },
-    "exceptions": {
-      "prerequisites": ["functions"],
-      "objective": "Handle runtime errors gracefully using try / except / finally blocks."
-    },
-    "file_io": {
-      "prerequisites": ["exceptions", "strings"],
-      "objective": "Read from and write to text files safely using context managers."
+      "prerequisites": ["loops"],
+      "objective": "Define reusable functions with parameters, return values, default arguments, and understand scope."
     },
     "oop_basics": {
-      "prerequisites": ["functions", "dictionaries_sets"],
-      "objective": "Define classes, instantiate objects, and use basic single inheritance."
+      "prerequisites": ["functions"],
+      "objective": "Define classes, create objects, use __init__, instance methods, and apply single inheritance."
     }
-  },
-  "notes": "Extend this file with additional domains (ml_basics.json, signal_processing.json, etc.) using the same schema once the Python module is validated end-to-end."
+  }
 }

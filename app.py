@@ -71,10 +71,11 @@ ABLATION_MODES = {
 
 DOMAINS = {
     "python_programming":  "Python Programming",
-    "ml_basics":           "ML Basics",
-    "signal_processing":   "Signal Processing",
-    "physiology_basics":   "Physiology Basics",
-    "data_analysis":       "Data Analysis",
+    # Other domains available but excluded from current pilot (Python only)
+    # "ml_basics":           "ML Basics",
+    # "signal_processing":   "Signal Processing",
+    # "physiology_basics":   "Physiology Basics",
+    # "data_analysis":       "Data Analysis",
 }
 
 PRETEST_FILES = {
@@ -103,8 +104,45 @@ def _color(s: float) -> str:
 
 
 def _load_test(path: str) -> list[dict]:
+    """Load test file. Supports both old flat format and new sectioned format."""
     with open(path, encoding="utf-8") as f:
-        return json.load(f)["questions"]
+        data = json.load(f)
+    # New format: has "sections" with per-topic question groups
+    if "sections" in data:
+        return data["sections"]   # list of {topic, title, questions:[...]}
+    # Old flat format: has "questions" at top level
+    return data.get("questions", [])
+
+
+def _is_sectioned(test_data: list) -> bool:
+    """True if test data uses the new sectioned format (each item has 'questions' key)."""
+    return bool(test_data) and "questions" in test_data[0]
+
+
+def _score_sectioned(sections: list, answers: dict) -> tuple[int, int, dict]:
+    """
+    Score a sectioned test.
+    Returns (n_correct, n_total, per_topic_scores).
+    per_topic_scores = {topic: {"correct": int, "total": int, "pct": float}}
+    """
+    n_correct = 0
+    n_total   = 0
+    per_topic = {}
+    for sec in sections:
+        topic  = sec["topic"]
+        t_corr = 0
+        t_tot  = len(sec["questions"])
+        for q in sec["questions"]:
+            if answers.get(q["id"]) == q["correct_index"]:
+                t_corr += 1
+                n_correct += 1
+            n_total += 1
+        per_topic[topic] = {
+            "correct": t_corr,
+            "total":   t_tot,
+            "pct":     round(t_corr / t_tot * 100, 1) if t_tot else 0.0,
+        }
+    return n_correct, n_total, per_topic
 
 
 def _load_all_topics(domain: str) -> list[str]:
@@ -470,19 +508,49 @@ def _start_session(
     ls["ablation_mode"] = ablation
     ls["engagement"]["session_count"] = ls["engagement"].get("session_count", 0) + 1
 
-    # ── Session resume: if the student has a saved phase, restore it ──────────
+    # ── Determine what the student should do this session ─────────────────────
     saved_phase = ls.get("current_phase", "pretest")
-    # Only resume mid-session phases — never resume the done page itself
-    resumable = {"pretest", "gen_lesson", "answering", "gen_feedback", "posttest",
-                 "traditional"}
-    if saved_phase in resumable and ls.get("topic_sequence") is not None:
+
+    # Check DB for existing pre/post test scores
+    stored_scores = get_pilot_scores(DB_PATH)
+    student_scores = [s for s in stored_scores
+                      if s["student_id"] == sid and s["domain"] == domain]
+    has_pretest  = any(s["test_type"] == "pretest"  for s in student_scores)
+    has_posttest = any(s["test_type"] == "posttest" for s in student_scores)
+
+    if has_posttest:
+        # Session fully complete — go straight to done/results, no more tests
+        resume_phase = "done"
+
+    elif has_pretest and saved_phase in ("gen_lesson", "answering",
+                                         "gen_feedback", "traditional"):
+        # Pre-test done, still in learning phase — resume exactly where left off
         resume_phase = saved_phase
+
+    elif has_pretest and saved_phase == "posttest":
+        # Was about to do post-test — resume there
+        resume_phase = "posttest"
+
+    elif has_pretest and saved_phase in ("done", "pretest", ""):
+        # Pre-test done but session 1 ended before post-test (e.g. ran out of topics quota)
+        # Start a fresh learning session continuing from remaining topics
+        resume_phase = "gen_lesson" if group == "experimental" else "traditional"
+
     else:
+        # First time — start with pre-test
         resume_phase = "pretest"
 
-    # Run planner only for experimental group and only if starting fresh or replanning
-    if group == "experimental" and ablation != "static" and resume_phase == "pretest":
-        ls = planner_agent(ls)
+    # Run planner for experimental group when starting fresh learning
+    if group == "experimental" and ablation != "static":
+        if resume_phase in ("pretest", "gen_lesson") and not has_pretest:
+            # First session — plan before pretest
+            ls = planner_agent(ls)
+        elif resume_phase == "gen_lesson" and has_pretest:
+            # Returning for more learning — replan with current mastery
+            ls = planner_agent(ls)
+
+    # topics_done: restore from engagement or reset for new learning chunk
+    topics_done = ls["engagement"].get("topics_done", 0) if resume_phase != "pretest" else 0
 
     st.session_state.ls           = ls
     st.session_state.domain       = domain
@@ -490,86 +558,201 @@ def _start_session(
     st.session_state.ablation     = ablation
     st.session_state.max_topics   = max_topics
     st.session_state.q_per_topic  = q_per_topic
-    st.session_state.topics_done  = ls["engagement"].get("topics_done", 0)
+    st.session_state.topics_done  = topics_done
     st.session_state.q_done       = 0
     st.session_state.history      = []
     st.session_state.test_answers = {}
     st.session_state.survey_submitted = False
     st.session_state.phase        = resume_phase
 
-    if resume_phase != "pretest":
-        st.toast(f"✅ Welcome back! Resuming from where you left off.", icon="🎓")
+    # Show the student what's happening
+    if resume_phase == "done":
+        st.toast("✅ Your study session is complete. See your results below.", icon="🎉")
+    elif resume_phase != "pretest":
+        st.toast("✅ Welcome back! Resuming from where you left off.", icon="🎓")
 
     st.rerun()
 
 
 # ── pre-test ──────────────────────────────────────────────────────────────────
 def phase_pretest():
-    ls = st.session_state.ls
+    ls     = st.session_state.ls
     domain = ls["domain"]
     _sidebar()
-    st.title(f"📋 Pre-Test — {DOMAINS[domain]}")
-    st.info("Answer all 10 questions. **No feedback is given during the test.** Submit when done.")
 
-    questions = _load_test(PRETEST_FILES[domain])
-    answers = st.session_state.get("test_answers", {})
-
-    with st.form("pretest_form"):
-        for q in questions:
-            st.markdown(f"**{q['id'].upper()}. {q['prompt']}**")
-            answers[q["id"]] = st.radio(
-                f"Answer for question {q['id'].upper()}",
-                options=list(range(len(q["options"]))),
-                format_func=lambda i, opts=q["options"]: f"{i}. {opts[i]}",
-                key=f"pre_{q['id']}",
-                index=answers.get(q["id"], 0),
-                label_visibility="collapsed",
-            )
-            st.markdown("---")
-        submitted = st.form_submit_button("Submit Pre-Test ✓", type="primary")
-
-    if submitted:
-        n_correct = sum(
-            1 for q in questions
-            if answers.get(q["id"]) == q["correct_index"]
+    # ── Hard guard: never retake ──────────────────────────────────────────────
+    stored = get_pilot_scores(DB_PATH)
+    already_done = any(
+        s["student_id"] == ls["student_id"]
+        and s["domain"] == domain
+        and s["test_type"] == "pretest"
+        for s in stored
+    )
+    if already_done:
+        group       = st.session_state.get("group", "experimental")
+        stored_post = any(
+            s["student_id"] == ls["student_id"]
+            and s["domain"] == domain
+            and s["test_type"] == "posttest"
+            for s in stored
         )
-        score_pct = round(n_correct / len(questions) * 100, 1)
-        save_pilot_score(
-            student_id=ls["student_id"],
-            domain=domain,
-            test_type="pretest",
-            score_pct=score_pct,
-            n_correct=n_correct,
-            n_total=len(questions),
-            group_label=st.session_state.get("group", "experimental"),
-            ablation_mode=st.session_state.get("ablation", "full"),
-            db_path=DB_PATH,
-        )
-        st.session_state.pretest_score = score_pct
-        st.session_state.test_answers  = {}
-        ls = dict(ls)
-        ls["pretest_score_pct"] = score_pct
-        st.session_state.ls = ls
-        if st.session_state.get("group") == "control":
-            _save(ls, "traditional")
+        if stored_post:
+            st.session_state.phase = "done"
+        elif group == "control":
             st.session_state.phase = "traditional"
         else:
-            ls = planner_agent(ls)
-            _save(ls, "gen_lesson")
-            st.session_state.ls = ls
             st.session_state.phase = "gen_lesson"
         st.rerun()
 
+    # ── Load test data ────────────────────────────────────────────────────────
+    test_data = _load_test(PRETEST_FILES[domain])
+    sectioned = _is_sectioned(test_data)
+    answers   = st.session_state.get("test_answers", {})
+
+    st.title(f"📋 Pre-Test — {DOMAINS[domain]}")
+
+    if sectioned:
+        # ── New sectioned format: one collapsible section per topic ──────────
+        st.info(
+            f"This test has **{len(test_data)} sections** — one per topic — "
+            f"with **5 questions each** ({len(test_data) * 5} questions total).  \n"
+            "Answer every question. **No feedback is given.** Submit when done."
+        )
+
+        # Progress bar — how many questions answered so far
+        total_qs     = sum(len(s["questions"]) for s in test_data)
+        answered_qs  = sum(1 for s in test_data
+                           for q in s["questions"] if q["id"] in answers)
+        st.progress(
+            answered_qs / total_qs if total_qs else 0,
+            text=f"Answered {answered_qs} / {total_qs} questions"
+        )
+
+        with st.form("pretest_form"):
+            for sec_idx, section in enumerate(test_data):
+                topic_label = section.get("title", section["topic"].replace("_", " ").title())
+                answered_in_sec = sum(1 for q in section["questions"] if q["id"] in answers)
+                sec_done = answered_in_sec == len(section["questions"])
+                icon = "✅" if sec_done else "📝"
+
+                with st.expander(f"{icon} {topic_label}  ({answered_in_sec}/{len(section['questions'])} answered)", expanded=not sec_done):
+                    for q_idx, q in enumerate(section["questions"]):
+                        st.markdown(f"**Q{q_idx+1}. {q['prompt']}**")
+                        answers[q["id"]] = st.radio(
+                            f"Answer for {q['id']}",
+                            options=list(range(len(q["options"]))),
+                            format_func=lambda i, opts=q["options"]: f"{chr(65+i)}. {opts[i]}",
+                            key=f"pre_{q['id']}",
+                            index=answers.get(q["id"], 0),
+                            label_visibility="collapsed",
+                        )
+                        if q_idx < len(section["questions"]) - 1:
+                            st.markdown("---")
+
+            st.divider()
+            st.caption(f"Make sure all {total_qs} questions are answered before submitting.")
+            submitted = st.form_submit_button("Submit Pre-Test ✓", type="primary",
+                                              use_container_width=True)
+
+        if submitted:
+            n_correct, n_total, per_topic = _score_sectioned(test_data, answers)
+            score_pct = round(n_correct / n_total * 100, 1) if n_total else 0.0
+
+            # Show per-topic breakdown before proceeding
+            st.success(f"✅ Pre-test submitted! Overall score: **{score_pct}%** ({n_correct}/{n_total})")
+            with st.expander("Per-topic scores"):
+                for topic, s in per_topic.items():
+                    label = topic.replace("_", " ").title()
+                    bar   = "█" * s["correct"] + "░" * (s["total"] - s["correct"])
+                    st.markdown(f"**{label}**: {s['correct']}/{s['total']}  `{bar}`  {s['pct']}%")
+
+            save_pilot_score(
+                student_id=ls["student_id"], domain=domain, test_type="pretest",
+                score_pct=score_pct, n_correct=n_correct, n_total=n_total,
+                group_label=st.session_state.get("group", "experimental"),
+                ablation_mode=st.session_state.get("ablation", "full"),
+                db_path=DB_PATH,
+            )
+            # Save per-topic pretest scores into state for planner bootstrap
+            ls = dict(ls)
+            ls["pretest_score_pct"] = score_pct
+            ls["pretest_per_topic"] = per_topic
+            st.session_state.pretest_score = score_pct
+            st.session_state.test_answers  = {}
+            st.session_state.ls = ls
+
+            if st.session_state.get("group") == "control":
+                _save(ls, "traditional")
+                st.session_state.phase = "traditional"
+            else:
+                ls = planner_agent(ls)
+                _save(ls, "gen_lesson")
+                st.session_state.ls = ls
+                st.session_state.phase = "gen_lesson"
+            st.rerun()
+
+    else:
+        # ── Old flat format (fallback) ────────────────────────────────────────
+        st.info("Answer all questions. **No feedback is given during the test.** Submit when done.")
+        with st.form("pretest_form"):
+            for q in test_data:
+                st.markdown(f"**{q['id'].upper()}. {q['prompt']}**")
+                answers[q["id"]] = st.radio(
+                    f"Answer for question {q['id'].upper()}",
+                    options=list(range(len(q["options"]))),
+                    format_func=lambda i, opts=q["options"]: f"{i}. {opts[i]}",
+                    key=f"pre_{q['id']}",
+                    index=answers.get(q["id"], 0),
+                    label_visibility="collapsed",
+                )
+                st.markdown("---")
+            submitted = st.form_submit_button("Submit Pre-Test ✓", type="primary")
+
+        if submitted:
+            n_correct = sum(1 for q in test_data if answers.get(q["id"]) == q["correct_index"])
+            n_total   = len(test_data)
+            score_pct = round(n_correct / n_total * 100, 1)
+            save_pilot_score(
+                student_id=ls["student_id"], domain=domain, test_type="pretest",
+                score_pct=score_pct, n_correct=n_correct, n_total=n_total,
+                group_label=st.session_state.get("group", "experimental"),
+                ablation_mode=st.session_state.get("ablation", "full"),
+                db_path=DB_PATH,
+            )
+            st.session_state.pretest_score = score_pct
+            st.session_state.test_answers  = {}
+            ls = dict(ls)
+            ls["pretest_score_pct"] = score_pct
+            st.session_state.ls = ls
+            if st.session_state.get("group") == "control":
+                _save(ls, "traditional")
+                st.session_state.phase = "traditional"
+            else:
+                ls = planner_agent(ls)
+                _save(ls, "gen_lesson")
+                st.session_state.ls = ls
+                st.session_state.phase = "gen_lesson"
+            st.rerun()
+
 
 def phase_traditional():
-    """Control arm: static corpus study materials (no Planner/Content/Assessment/Monitor)."""
-    ls = st.session_state.ls
+    """Control arm: static corpus study materials (no agents)."""
+    ls     = st.session_state.ls
     domain = ls["domain"]
     _sidebar()
-    st.title(f"📚 Traditional study — {DOMAINS[domain]}")
+
+    # ── Guard: if post-test already done, skip straight to done ───────────────
+    stored = get_pilot_scores(DB_PATH)
+    if any(s["student_id"] == ls["student_id"] and s["domain"] == domain
+           and s["test_type"] == "posttest" for s in stored):
+        st.session_state.phase = "done"
+        st.rerun()
+
+    st.title(f"📚 Study Materials — {DOMAINS[domain]}")
     st.info(
-        "You are in the **control** group. Study the course notes below "
-        "(same corpus the AI retrieves from). When you are ready, continue to the post-test."
+        "Read through the course notes below carefully. "
+        "When you are ready, click the button to take the post-test. "
+        "Take your time — there is no time limit on studying."
     )
     corpus_path = os.path.join("data", "corpus", f"{domain}.md")
     if os.path.exists(corpus_path):
@@ -577,59 +760,141 @@ def phase_traditional():
             notes = f.read()
         st.markdown(notes)
     else:
-        st.warning("Course notes file is missing for this domain.")
+        st.warning("Course notes file not found for this domain.")
+
+    st.divider()
     if st.button("I have finished studying — continue to post-test ▶", type="primary"):
-        save_state(DB_PATH, ls)
+        _save(ls, "posttest")
         st.session_state.phase = "posttest"
         st.rerun()
 
 
 # ── post-test ─────────────────────────────────────────────────────────────────
 def phase_posttest():
-    ls = st.session_state.ls
+    ls     = st.session_state.ls
     domain = ls["domain"]
     _sidebar()
-    st.title(f"📋 Post-Test — {DOMAINS[domain]}")
-    st.info("Answer all 10 questions. **No feedback is given.** Submit when done.")
 
-    questions = _load_test(POSTTEST_FILES[domain])
-    answers = st.session_state.get("test_answers", {})
-
-    with st.form("posttest_form"):
-        for q in questions:
-            st.markdown(f"**{q['id'].upper()}. {q['prompt']}**")
-            answers[q["id"]] = st.radio(
-                f"Answer for question {q['id'].upper()}",
-                options=list(range(len(q["options"]))),
-                format_func=lambda i, opts=q["options"]: f"{i}. {opts[i]}",
-                key=f"post_{q['id']}",
-                index=answers.get(q["id"], 0),
-                label_visibility="collapsed",
-            )
-            st.markdown("---")
-        submitted = st.form_submit_button("Submit Post-Test ✓", type="primary")
-
-    if submitted:
-        n_correct = sum(
-            1 for q in questions
-            if answers.get(q["id"]) == q["correct_index"]
-        )
-        score_pct = round(n_correct / len(questions) * 100, 1)
-        save_pilot_score(
-            student_id=ls["student_id"],
-            domain=domain,
-            test_type="posttest",
-            score_pct=score_pct,
-            n_correct=n_correct,
-            n_total=len(questions),
-            group_label=st.session_state.get("group", "experimental"),
-            ablation_mode=st.session_state.get("ablation", "full"),
-            db_path=DB_PATH,
-        )
-        st.session_state.posttest_score = score_pct
-        _save(ls, "done")
+    # ── Hard guard: if post-test score already in DB, never show it again ─────
+    stored = get_pilot_scores(DB_PATH)
+    if any(s["student_id"] == ls["student_id"] and s["domain"] == domain
+           and s["test_type"] == "posttest" for s in stored):
         st.session_state.phase = "done"
         st.rerun()
+
+    # ── Pre-test must exist before post-test ──────────────────────────────────
+    if not any(s["student_id"] == ls["student_id"] and s["domain"] == domain
+               and s["test_type"] == "pretest" for s in stored):
+        st.warning("Pre-test not found. Please complete the pre-test first.")
+        st.session_state.phase = "pretest"
+        st.rerun()
+
+    # ── Load test data ────────────────────────────────────────────────────────
+    test_data = _load_test(POSTTEST_FILES[domain])
+    sectioned = _is_sectioned(test_data)
+    answers   = st.session_state.get("test_answers", {})
+
+    st.title(f"📋 Post-Test — {DOMAINS[domain]}")
+
+    if sectioned:
+        # ── Per-topic section UI ──────────────────────────────────────────────
+        total_qs    = sum(len(s["questions"]) for s in test_data)
+        answered_qs = sum(1 for s in test_data
+                          for q in s["questions"] if q["id"] in answers)
+
+        st.info(
+            f"This test has **{len(test_data)} sections** — one per topic — "
+            f"with **5 questions each** ({total_qs} questions total).  \n"
+            "Answer every question. **No feedback is given.** Submit when done."
+        )
+        st.progress(
+            answered_qs / total_qs if total_qs else 0,
+            text=f"Answered {answered_qs} / {total_qs} questions"
+        )
+
+        with st.form("posttest_form"):
+            for sec_idx, section in enumerate(test_data):
+                topic_label     = section.get("title", section["topic"].replace("_", " ").title())
+                answered_in_sec = sum(1 for q in section["questions"] if q["id"] in answers)
+                sec_done        = answered_in_sec == len(section["questions"])
+                icon            = "✅" if sec_done else "📝"
+
+                with st.expander(f"{icon} {topic_label}  ({answered_in_sec}/{len(section['questions'])} answered)", expanded=not sec_done):
+                    for q_idx, q in enumerate(section["questions"]):
+                        st.markdown(f"**Q{q_idx+1}. {q['prompt']}**")
+                        answers[q["id"]] = st.radio(
+                            f"Answer for {q['id']}",
+                            options=list(range(len(q["options"]))),
+                            format_func=lambda i, opts=q["options"]: f"{chr(65+i)}. {opts[i]}",
+                            key=f"post_{q['id']}",
+                            index=answers.get(q["id"], 0),
+                            label_visibility="collapsed",
+                        )
+                        if q_idx < len(section["questions"]) - 1:
+                            st.markdown("---")
+
+            st.divider()
+            st.caption(f"Make sure all {total_qs} questions are answered before submitting.")
+            submitted = st.form_submit_button("Submit Post-Test ✓", type="primary",
+                                              use_container_width=True)
+
+        if submitted:
+            n_correct, n_total, per_topic = _score_sectioned(test_data, answers)
+            score_pct = round(n_correct / n_total * 100, 1) if n_total else 0.0
+
+            # Show per-topic breakdown
+            st.success(f"✅ Post-test submitted! Overall score: **{score_pct}%** ({n_correct}/{n_total})")
+            with st.expander("Per-topic scores"):
+                for topic, s in per_topic.items():
+                    label = topic.replace("_", " ").title()
+                    bar   = "█" * s["correct"] + "░" * (s["total"] - s["correct"])
+                    st.markdown(f"**{label}**: {s['correct']}/{s['total']}  `{bar}`  {s['pct']}%")
+
+            save_pilot_score(
+                student_id=ls["student_id"], domain=domain, test_type="posttest",
+                score_pct=score_pct, n_correct=n_correct, n_total=n_total,
+                group_label=st.session_state.get("group", "experimental"),
+                ablation_mode=st.session_state.get("ablation", "full"),
+                db_path=DB_PATH,
+            )
+            st.session_state.posttest_score = score_pct
+            st.session_state.test_answers   = {}
+            _save(ls, "done")
+            st.session_state.phase = "done"
+            st.rerun()
+
+    else:
+        # ── Old flat format (fallback) ────────────────────────────────────────
+        st.info("Answer all questions. **No feedback is given.** Submit when done.")
+        with st.form("posttest_form"):
+            for q in test_data:
+                st.markdown(f"**{q['id'].upper()}. {q['prompt']}**")
+                answers[q["id"]] = st.radio(
+                    f"Answer for question {q['id'].upper()}",
+                    options=list(range(len(q["options"]))),
+                    format_func=lambda i, opts=q["options"]: f"{i}. {opts[i]}",
+                    key=f"post_{q['id']}",
+                    index=answers.get(q["id"], 0),
+                    label_visibility="collapsed",
+                )
+                st.markdown("---")
+            submitted = st.form_submit_button("Submit Post-Test ✓", type="primary")
+
+        if submitted:
+            n_correct = sum(1 for q in test_data if answers.get(q["id"]) == q["correct_index"])
+            n_total   = len(test_data)
+            score_pct = round(n_correct / n_total * 100, 1)
+            save_pilot_score(
+                student_id=ls["student_id"], domain=domain, test_type="posttest",
+                score_pct=score_pct, n_correct=n_correct, n_total=n_total,
+                group_label=st.session_state.get("group", "experimental"),
+                ablation_mode=st.session_state.get("ablation", "full"),
+                db_path=DB_PATH,
+            )
+            st.session_state.posttest_score = score_pct
+            _save(ls, "done")
+            st.session_state.phase = "done"
+            st.rerun()
 
 
 # ── learning loop ─────────────────────────────────────────────────────────────
@@ -808,10 +1073,14 @@ def phase_gen_feedback():
             except FallbackLLMError:
                 ls = dict(ls)
                 ls["replan_flag"] = False   # clear flag so we don't loop
-        _save(ls, "gen_lesson")
-        st.session_state.ls          = ls
         st.session_state.topics_done += 1
         st.session_state.q_done      = 0
+
+        # Persist topics_done into engagement so session resume knows progress
+        ls = dict(ls)
+        ls["engagement"]["topics_done"] = st.session_state.topics_done
+        _save(ls, "gen_lesson")
+        st.session_state.ls = ls
 
         no_topics = not ls.get("topic_sequence")
         quota     = st.session_state.topics_done >= st.session_state.max_topics
