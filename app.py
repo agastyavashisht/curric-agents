@@ -60,6 +60,7 @@ def _env(key: str, default: str = "") -> str:
     return os.getenv(key, default)
 
 PILOT_DOMAIN        = _env("PILOT_DOMAIN", "")
+MASTERY_THRESHOLD_PRACTICE = 0.70   # topics below this are shown in practice mode
 ABLATION_MODES = {
     "full":                   "Full system (adaptive planning + adaptive assessment)",
     "no_adaptive_assessment": "No adaptive assessment (fixed difficulty questions)",
@@ -519,8 +520,21 @@ def _start_session(
     has_posttest = any(s["test_type"] == "posttest" for s in student_scores)
 
     if has_posttest:
-        # Session fully complete — go straight to done/results, no more tests
-        resume_phase = "done"
+        # Research study is complete (pre+post done).
+        # But allow the student to keep practising weak topics in "practice" mode.
+        # Check if there are any topics still below mastery threshold.
+        weak_topics = [
+            t for t, m in ls.get("mastery", {}).items()
+            if m < MASTERY_THRESHOLD_PRACTICE
+        ]
+        remaining_sequence = ls.get("topic_sequence", [])
+
+        if remaining_sequence or weak_topics:
+            # There are still lagging topics — offer practice mode
+            resume_phase = "practice_menu"
+        else:
+            # All topics mastered — genuinely done
+            resume_phase = "done"
 
     elif has_pretest and saved_phase in ("gen_lesson", "answering",
                                          "gen_feedback", "traditional"):
@@ -903,11 +917,15 @@ def phase_gen_lesson():
     _sidebar()
     topic = ls.get("topic_pointer")
 
-    # Guard: no topic means all topics are complete — go to posttest
+    # Guard: no topic means all topics are complete
     if not topic:
-        st.info("🎉 All topics complete! Moving to post-test.")
-        _save(ls, "posttest")
-        st.session_state.phase = "posttest"
+        if st.session_state.get("practice_mode"):
+            st.session_state.practice_mode = False
+            st.session_state.phase = "practice_menu"
+        else:
+            st.info("🎉 All topics complete! Moving to post-test.")
+            _save(ls, "posttest")
+            st.session_state.phase = "posttest"
         st.rerun()
 
     bloom_plan  = {b["topic"]: b for b in ls.get("bloom_plan", [])}
@@ -1086,7 +1104,12 @@ def phase_gen_feedback():
         quota     = st.session_state.topics_done >= st.session_state.max_topics
         if no_topics or quota:
             _save(ls, "posttest")
-            st.session_state.phase = "posttest"
+            # If in practice mode, go back to practice menu instead of posttest
+            if st.session_state.get("practice_mode"):
+                st.session_state.practice_mode = False
+                st.session_state.phase = "practice_menu"
+            else:
+                st.session_state.phase = "posttest"
         else:
             st.session_state.phase = "gen_lesson"
 
@@ -1170,6 +1193,20 @@ def phase_done():
         "✅ **Your session is now complete.** Thank you for participating!\n\n"
         "Please fill in the short questionnaire below, then let the researcher know you are done."
     )
+
+    # ── Offer practice mode if weak topics remain ─────────────────────────────
+    mastery    = ls.get("mastery", {})
+    all_topics = _load_all_topics(ls["domain"])
+    weak       = [t for t in all_topics if mastery.get(t, 0.0) < MASTERY_THRESHOLD_PRACTICE]
+    if weak:
+        with st.expander(f"📚 You have {len(weak)} topic(s) below mastery — want to keep practising?"):
+            for t in weak:
+                m = mastery.get(t, 0.0)
+                bar = "█" * int(m * 10) + "░" * (10 - int(m * 10))
+                st.markdown(f"**{_label(t)}**: `{bar}` {m:.0%}")
+            if st.button("🔄 Go to Practice Mode", type="primary"):
+                st.session_state.phase = "practice_menu"
+                st.rerun()
     # ── Gap 6: Post-study Likert survey (paper §VII-C) ────────────────────────
     if not st.session_state.get("survey_submitted"):
         st.subheader("📋 Post-Study Questionnaire")
@@ -1599,6 +1636,96 @@ Until configured, all data is stored locally in `results/learner_state.db`.
             )
 
 
+def phase_practice_menu():
+    """
+    Shown after a student completes the full study (pre-test + learning + post-test).
+    Lets them keep practising their weak topics without retaking tests.
+    This is separate from the research study — it's bonus learning.
+    """
+    ls = st.session_state.ls
+    _sidebar()
+
+    st.title("📚 Practice Mode")
+    st.success(
+        "✅ **Your study session is complete** — pre-test, learning, and post-test are all done.  \n"
+        "Your results are saved. Below are the topics you can still improve."
+    )
+
+    # Find weak topics (below mastery threshold)
+    mastery      = ls.get("mastery", {})
+    all_topics   = _load_all_topics(ls["domain"])
+    weak         = [(t, mastery.get(t, 0.0)) for t in all_topics
+                    if mastery.get(t, 0.0) < MASTERY_THRESHOLD_PRACTICE]
+    strong       = [(t, mastery.get(t, 0.0)) for t in all_topics
+                    if mastery.get(t, 0.0) >= MASTERY_THRESHOLD_PRACTICE]
+
+    if strong:
+        st.markdown("**Already mastered ✅**")
+        cols = st.columns(len(strong))
+        for i, (t, m) in enumerate(strong):
+            cols[i].metric(_label(t), f"{m:.0%}")
+
+    if not weak:
+        st.balloons()
+        st.success("🎉 You have mastered all topics! Nothing left to practise.")
+        if st.button("View Results"):
+            st.session_state.phase = "done"
+            st.rerun()
+        return
+
+    st.divider()
+    st.markdown("**Topics that need more practice** — click one to start:")
+
+    for topic, m in sorted(weak, key=lambda x: x[1]):  # weakest first
+        bar   = "█" * int(m * 10) + "░" * (10 - int(m * 10))
+        label = _label(topic)
+        bloom = _bloom_level_label(m)
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**{label}**  `{bar}` {m:.0%}  —  _{bloom} level_")
+        with col2:
+            if st.button(f"Practise ▶", key=f"prac_{topic}"):
+                # Set this topic as the only one in the practice sequence
+                ls = dict(ls)
+                ls["topic_sequence"] = [topic]
+                ls["topic_pointer"]  = topic
+                ls["bloom_plan"] = [{
+                    "topic":       topic,
+                    "bloom_level": bloom,
+                    "mastery_gap": round(1.0 - m, 3),
+                }]
+                ls["replan_flag"] = False
+                st.session_state.ls          = ls
+                st.session_state.topics_done = 0
+                st.session_state.q_done      = 0
+                st.session_state.history     = []
+                # After practising this topic, come back to practice menu
+                st.session_state.practice_mode = True
+                _save(ls, "gen_lesson")
+                st.session_state.phase = "gen_lesson"
+                st.rerun()
+
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📊 View My Results"):
+            st.session_state.phase = "done"
+            st.rerun()
+    with col2:
+        if st.button("✅ I'm done practising"):
+            st.session_state.phase = "done"
+            st.rerun()
+
+
+def _bloom_level_label(mastery_score: float) -> str:
+    """Human-readable Bloom level label."""
+    if mastery_score < 0.25:   return "remember"
+    elif mastery_score < 0.45: return "understand"
+    elif mastery_score < 0.65: return "apply"
+    elif mastery_score < 0.80: return "analyze"
+    else:                       return "evaluate"
+
+
 def phase_supabase_test():
     """Hidden diagnostic page — go to ?phase=supabase_test in browser."""
     st.title("🔌 Supabase Connection Test")
@@ -1687,6 +1814,7 @@ PHASES = {
     "gen_feedback":   phase_gen_feedback,
     "posttest":       phase_posttest,
     "done":           phase_done,
+    "practice_menu":  phase_practice_menu,
     "dashboard":      phase_dashboard,
     "supabase_test":  phase_supabase_test,
 }

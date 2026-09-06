@@ -15,6 +15,7 @@ class LearnerState(TypedDict):
     topic_pointer: Optional[str]     # the topic currently being taught/assessed
     bloom_plan: List[Dict[str, Any]] # [{topic, bloom_level, mastery_gap}, ...] — from Planner
     pretest_score_pct: Optional[float]  # set after pretest so Planner can bootstrap mastery
+    pretest_per_topic: Optional[Dict[str, Any]]  # {topic: {correct,total,pct}} from sectioned test
     ablation_mode: str               # "full"|"no_adaptive_assessment"|"no_adaptive_planning"|"planner_only"|"static"
 
     # --- written by Content ---
@@ -46,6 +47,7 @@ def new_state(student_id: str, domain: str) -> LearnerState:
         topic_pointer=None,
         bloom_plan=[],
         pretest_score_pct=None,
+        pretest_per_topic=None,
         ablation_mode="full",
         current_material=None,
         pending_item=None,

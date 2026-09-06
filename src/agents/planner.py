@@ -54,38 +54,56 @@ def _load_graph(domain: str) -> dict:
 
 
 # ── personalisation helpers ───────────────────────────────────────────────────
-def _pretest_bootstrap(mastery: dict, topics: dict, pretest_score_pct: float | None) -> dict:
+def _pretest_bootstrap(
+    mastery: dict,
+    topics: dict,
+    pretest_score_pct: float | None,
+    pretest_per_topic: dict | None = None,
+) -> dict:
     """
     Layer 1 — Pre-test bootstrap.
 
-    Convert a raw pre-test % score into initial per-topic mastery estimates.
-    Strategy: assume the student's knowledge is proportional to their total
-    score and map it linearly across the topic difficulty ordering.
+    If per-topic scores are available (new sectioned test format), use them
+    directly — each topic's mastery is set to its actual section score.
+    This is the accurate path: a student who got 5/5 on loops gets mastery=1.0
+    and skips it entirely; a student who got 2/5 gets mastery=0.40 and sees it.
 
-    Topics in the early part of the topological order get higher initial
-    mastery; later (harder) topics get lower, scaled by the overall score.
-    This gives a smooth, conservative starting point rather than treating
-    every topic as zero.
+    Falls back to positional estimation from overall score if per-topic data
+    is not available (old flat test format).
     """
     if pretest_score_pct is None:
         return mastery
 
     mastery = dict(mastery)
-    score   = max(0.0, min(pretest_score_pct / 100.0, 1.0))
 
-    # Sort topics by their position in a plain topological order (no mastery)
-    plain_topo = _topological_order(topics, {}, mastery_threshold=1.1)  # threshold > 1 → skip nothing
-    n = len(plain_topo)
+    # ── ACCURATE PATH: per-topic scores available (new sectioned test) ────────
+    if pretest_per_topic:
+        for topic, scores in pretest_per_topic.items():
+            if topic not in topics:
+                continue
+            if topic in mastery and mastery[topic] > 0:
+                continue   # real history exists — don't overwrite
+            pct = scores.get("pct", 0.0)
+            # Direct mapping: topic score % → mastery estimate
+            # 100% → 1.0, 80% → 0.85, 60% → 0.72, 40% → 0.52, 20% → 0.30, 0% → 0.05
+            # Apply a slight conservative discount so students still touch topics
+            # where they borderline passed rather than completely skipping them.
+            raw = pct / 100.0
+            # Slight conservative discount for borderline topics (60-80%):
+            # we want 100% to skip (≥0.70), 80% to skip, 60% to borderline show
+            mastery[topic] = round(raw * 0.95, 3)
+        return mastery
+
+    # ── FALLBACK PATH: only overall score available (old flat test) ───────────
+    score      = max(0.0, min(pretest_score_pct / 100.0, 1.0))
+    plain_topo = _topological_order(topics, {}, mastery_threshold=1.1)
+    n          = len(plain_topo)
 
     for rank, topic in enumerate(plain_topo):
         if topic in mastery and mastery[topic] > 0:
-            continue    # student already has real history — don't overwrite
-        # Earlier (easier) topics benefit more from a high score.
-        # Positional weight: 1.0 for first topic, 0.0 for last.
+            continue
         positional = 1.0 - (rank / max(n - 1, 1))
-        # Blend: for a 100% score, early topics start at 1.0; for 0%, all start at 0.
-        # For a 60% score, early topic ≈ 0.60, late topic ≈ 0.
-        initial = round(score * (0.4 + 0.6 * positional), 3)
+        initial    = round(score * (0.4 + 0.6 * positional), 3)
         mastery[topic] = initial
 
     return mastery
@@ -291,11 +309,11 @@ def planner_node(state: LearnerState) -> LearnerState:
     topics = _load_graph(state["domain"])
 
     # ── Layer 1: pre-test bootstrap ───────────────────────────────────────────
-    pretest_pct = state.get("pretest_score_pct")        # set by app.py after pretest
-    mastery     = _pretest_bootstrap(
-        dict(state.get("mastery", {})), topics, pretest_pct
+    pretest_pct       = state.get("pretest_score_pct")
+    pretest_per_topic = state.get("pretest_per_topic")   # per-topic scores from sectioned test
+    mastery = _pretest_bootstrap(
+        dict(state.get("mastery", {})), topics, pretest_pct, pretest_per_topic
     )
-    # Only bootstrap once (clear the trigger so we don't re-run next session)
     state["mastery"] = mastery
     if pretest_pct is not None:
         state["pretest_score_pct"] = None
