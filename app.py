@@ -1699,6 +1699,11 @@ def phase_practice_menu():
                 st.session_state.topics_done = 0
                 st.session_state.q_done      = 0
                 st.session_state.history     = []
+                # Track which topics have been practised for the re-test
+                practised = st.session_state.get("practised_topics", [])
+                if topic not in practised:
+                    practised.append(topic)
+                st.session_state.practised_topics = practised
                 # After practising this topic, come back to practice menu
                 st.session_state.practice_mode = True
                 _save(ls, "gen_lesson")
@@ -1706,15 +1711,154 @@ def phase_practice_menu():
                 st.rerun()
 
     st.divider()
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("📊 View My Results"):
             st.session_state.phase = "done"
             st.rerun()
     with col2:
+        # After practising, offer a mini re-test on the practised topics
+        practised = st.session_state.get("practised_topics", [])
+        if practised:
+            if st.button(f"📝 Re-test on {len(practised)} practised topic(s)", type="primary"):
+                st.session_state.phase = "practice_test"
+                st.rerun()
+    with col3:
         if st.button("✅ I'm done practising"):
             st.session_state.phase = "done"
             st.rerun()
+
+
+def phase_practice_test():
+    """
+    Mini re-test after practice mode.
+    Shows only the sections (topics) the student actually practised.
+    Uses questions from the posttest (Form B) so they are different from the pretest.
+    Score saved as test_type='practice_test' — separate from the main post-test.
+    This lets the paper report: pre → post → practice → practice_post improvement.
+    """
+    ls     = st.session_state.ls
+    domain = ls["domain"]
+    _sidebar()
+
+    practised_topics = st.session_state.get("practised_topics", [])
+    if not practised_topics:
+        st.info("No topics practised yet. Go back and practise some topics first.")
+        if st.button("← Back to Practice"):
+            st.session_state.phase = "practice_menu"
+            st.rerun()
+        return
+
+    # Load posttest and filter to only practised topics
+    post_data  = _load_test(POSTTEST_FILES[domain])
+    sectioned  = _is_sectioned(post_data)
+    if sectioned:
+        sections = [s for s in post_data if s["topic"] in practised_topics]
+    else:
+        sections = []
+
+    if not sections:
+        st.warning("Could not find test questions for practised topics.")
+        if st.button("← Back to Practice"):
+            st.session_state.phase = "practice_menu"
+            st.rerun()
+        return
+
+    st.title("📋 Practice Re-Test")
+    st.info(
+        f"This mini re-test covers the **{len(sections)} topic(s) you just practised**.  \n"
+        "It uses the same post-test questions so your improvement is directly comparable.  \n"
+        "**No feedback** is given. Submit when done."
+    )
+
+    answers   = st.session_state.get("practice_test_answers", {})
+    total_qs  = sum(len(s["questions"]) for s in sections)
+    answered  = sum(1 for s in sections for q in s["questions"] if q["id"] in answers)
+
+    st.progress(
+        answered / total_qs if total_qs else 0,
+        text=f"Answered {answered} / {total_qs} questions"
+    )
+
+    with st.form("practice_test_form"):
+        for section in sections:
+            topic_label = section.get("title", _label(section["topic"]))
+            m_before = ls.get("mastery", {}).get(section["topic"], 0.0)
+
+            # Show mastery before practice for comparison
+            st.subheader(f"📘 {topic_label}")
+            st.caption(f"Mastery before this practice: {m_before:.0%}")
+
+            for q_idx, q in enumerate(section["questions"]):
+                st.markdown(f"**Q{q_idx+1}. {q['prompt']}**")
+                answers[q["id"]] = st.radio(
+                    f"Answer for {q['id']}",
+                    options=list(range(len(q["options"]))),
+                    format_func=lambda i, opts=q["options"]: f"{chr(65+i)}. {opts[i]}",
+                    key=f"ptest_{q['id']}",
+                    index=answers.get(q["id"], 0),
+                    label_visibility="collapsed",
+                )
+                if q_idx < len(section["questions"]) - 1:
+                    st.markdown("---")
+            st.divider()
+
+        submitted = st.form_submit_button("Submit Re-Test ✓", type="primary",
+                                          use_container_width=True)
+
+    if submitted:
+        n_correct, n_total, per_topic = _score_sectioned(sections, answers)
+        score_pct = round(n_correct / n_total * 100, 1) if n_total else 0.0
+
+        # Save as practice_test score (separate from main post-test)
+        save_pilot_score(
+            student_id=ls["student_id"],
+            domain=domain,
+            test_type="practice_test",
+            score_pct=score_pct,
+            n_correct=n_correct,
+            n_total=n_total,
+            group_label=st.session_state.get("group", "experimental"),
+            ablation_mode=st.session_state.get("ablation", "full"),
+            db_path=DB_PATH,
+        )
+
+        # Compare with post-test score on same topics
+        stored = get_pilot_scores(DB_PATH)
+        post_score = next((s["score_pct"] for s in stored
+                          if s["student_id"] == ls["student_id"]
+                          and s["domain"] == domain
+                          and s["test_type"] == "posttest"), None)
+
+        st.success(f"✅ Practice re-test complete!  Overall: **{score_pct}%** ({n_correct}/{n_total})")
+
+        # Show per-topic improvement
+        st.subheader("📈 Your improvement")
+        for topic, s in per_topic.items():
+            # Get original mastery from pretest bootstrap
+            pre_topic_score = ls.get("pretest_per_topic", {}).get(topic, {}).get("pct", 0)
+            new_pct = s["pct"]
+            gain    = new_pct - pre_topic_score
+            arrow   = "⬆" if gain > 0 else ("⬇" if gain < 0 else "→")
+            bar_new  = "█" * s["correct"] + "░" * (s["total"] - s["correct"])
+            st.markdown(
+                f"**{_label(topic)}**: "
+                f"Pre-test {pre_topic_score:.0f}% → Re-test **{new_pct:.0f}%**  "
+                f"`{bar_new}`  {arrow} {abs(gain):.0f}pp"
+            )
+
+        st.session_state.practice_test_answers = {}
+        st.session_state.practised_topics = []
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Practise more weak topics"):
+                st.session_state.phase = "practice_menu"
+                st.rerun()
+        with col2:
+            if st.button("📊 View Full Results"):
+                st.session_state.phase = "done"
+                st.rerun()
 
 
 def _bloom_level_label(mastery_score: float) -> str:
@@ -1806,17 +1950,18 @@ def phase_supabase_test():
 #  ROUTER
 # ════════════════════════════════════════════════════════════════
 PHASES = {
-    "login":          phase_login,
-    "pretest":        phase_pretest,
-    "traditional":    phase_traditional,
-    "gen_lesson":     phase_gen_lesson,
-    "answering":      phase_answering,
-    "gen_feedback":   phase_gen_feedback,
-    "posttest":       phase_posttest,
-    "done":           phase_done,
-    "practice_menu":  phase_practice_menu,
-    "dashboard":      phase_dashboard,
-    "supabase_test":  phase_supabase_test,
+    "login":           phase_login,
+    "pretest":         phase_pretest,
+    "traditional":     phase_traditional,
+    "gen_lesson":      phase_gen_lesson,
+    "answering":       phase_answering,
+    "gen_feedback":    phase_gen_feedback,
+    "posttest":        phase_posttest,
+    "done":            phase_done,
+    "practice_menu":   phase_practice_menu,
+    "practice_test":   phase_practice_test,
+    "dashboard":       phase_dashboard,
+    "supabase_test":   phase_supabase_test,
 }
 
 if "phase" not in st.session_state:
