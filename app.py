@@ -1144,6 +1144,8 @@ def phase_traditional_practice():
                                 f"**{chr(65 + ci)}. {opts[ci]}**")
         if st.button("Continue ▶", type="primary", use_container_width=True):
             st.session_state.practice_review = None
+            # Save phase so session resume works correctly
+            _save(ls, review["next_phase"])
             st.session_state.phase = review["next_phase"]
             st.rerun()
         return
@@ -1991,6 +1993,7 @@ Until configured, all data is stored locally in `results/learner_state.db`.
                             data=sub.to_csv(index=False),
                             file_name=f"{test_type}_scores.csv",
                             mime="text/csv",
+                            key=f"dl_{test_type}_scores",
                         )
             else:
                 st.info("No scores yet.")
@@ -2015,6 +2018,7 @@ Until configured, all data is stored locally in `results/learner_state.db`.
                         data=short.to_csv(index=False),
                         file_name="instructor_grades_template.csv",
                         mime="text/csv",
+                        key="dl_instructor_template",
                         help="Fill in instructor_score column (0-3), then run eval/grading_reliability.py",
                     )
                 else:
@@ -2031,6 +2035,7 @@ Until configured, all data is stored locally in `results/learner_state.db`.
                 data=pd.DataFrame(sdata).to_csv(index=False),
                 file_name="survey_responses.csv",
                 mime="text/csv",
+                key="dl_survey_tab4",
             )
         st.markdown("**Research summary (spec §17 — one row per student):**")
         try:
@@ -2066,6 +2071,7 @@ Until configured, all data is stored locally in `results/learner_state.db`.
                     f"⬇ research_summary.csv  ({len(research_rows)} rows)",
                     data=pd.DataFrame(research_rows).to_csv(index=False),
                     file_name="research_summary.csv", mime="text/csv",
+                    key="dl_research_summary",
                     help="All spec §17 fields flattened per student for the research evaluation.",
                 )
             else:
@@ -2129,6 +2135,7 @@ Until configured, all data is stored locally in `results/learner_state.db`.
                 data=sdf.to_csv(index=False),
                 file_name="survey_responses.csv",
                 mime="text/csv",
+                key="dl_survey_tab5",
             )
 
 
