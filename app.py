@@ -639,7 +639,14 @@ def _start_session(
                                          "gen_feedback", "traditional",
                                          "traditional_practice"):
         # Pre-test done, still in learning phase — resume exactly where left off
-        resume_phase = saved_phase
+        # Exception: if control group is at "traditional" but has already read
+        # (traditional_index > 0), go straight to practice
+        if (saved_phase == "traditional"
+                and group == "control"
+                and int(ls.get("traditional_index", 0)) > 0):
+            resume_phase = "traditional_practice"
+        else:
+            resume_phase = saved_phase
 
     elif has_pretest and saved_phase == "posttest":
         # Was about to do post-test — resume there
@@ -984,10 +991,14 @@ def phase_pretest():
 
 def phase_traditional():
     """
-    Control arm — fixed per-topic study materials (spec §3).
-    The student studies ONE topic at a time in the fixed order
-    (Variables → Control Flow → Loops → Functions → OOP Basics). The pre-test
-    score NEVER changes this order — no skipping, no personalisation.
+    Control arm — full study materials for ALL topics shown at once (spec §3).
+    Student reads everything first, then practices topic by topic.
+    The pre-test score NEVER changes this content or order — no personalisation.
+
+    Flow:
+      1. Student reads all 5 topics' notes on this single page
+      2. Clicks "I have studied all topics → Start Practice"
+      3. phase_traditional_practice handles one topic at a time (5 Qs each)
     """
     ls     = st.session_state.ls
     domain = ls["domain"]
@@ -1002,7 +1013,6 @@ def phase_traditional():
 
     order = topic_order(domain)
     done  = len(order)
-    idx   = int(ls.get("traditional_index", 0))
 
     if not order:
         st.warning("Topic order not configured for this domain. Moving to post-test.")
@@ -1011,54 +1021,59 @@ def phase_traditional():
         st.rerun()
         return
 
-    if idx >= done:
-        # All topics studied + practised — move to the post-test.
-        st.success("✅ You have finished studying and practising all topics.")
-        if st.button("Continue to the Post-Test ▶", type="primary"):
-            _save(ls, "posttest")
-            st.session_state.phase = "posttest"
-            st.rerun()
-        return
+    # ── Page header ───────────────────────────────────────────────────────────
+    st.title(f"📚 Study Material — {DOMAINS[domain]}")
+    st.info(
+        f"Read through all **{done} topics** below carefully. "
+        "Take your time — there is no time limit.  \n"
+        "When you have finished reading, click the button at the bottom "
+        "to begin the **practice questions**."
+    )
 
-    topic = order[idx]
-    st.title(f"📚 Topic {idx + 1} of {done}: {_label(topic)}")
-    st.progress(idx / done if done else 0,
-                text=f"Topics studied: {idx}/{done}")
-    st.caption("Study the material below carefully. After studying you will "
-               "answer 5 practice questions on this topic.")
+    # Progress indicator: reading → practice → post-test
+    st.markdown("**Your progress:**  📋 Pre-Test ✅ &nbsp;→&nbsp; 📚 **Reading** ← you are here &nbsp;→&nbsp; 📝 Practice &nbsp;→&nbsp; 📋 Post-Test")
+    st.divider()
 
-    notes = topic_notes(domain, topic)
-    if notes:
-        st.markdown("---")
-        # Split into heading + body for cleaner display
-        lines = notes.strip().splitlines()
-        heading = lines[0] if lines else ""
-        body    = "\n".join(lines[1:]).strip() if len(lines) > 1 else notes
+    # ── Show ALL topics' notes in collapsible sections ────────────────────────
+    for i, topic in enumerate(order):
+        topic_label = _label(topic)
+        notes = topic_notes(domain, topic)
 
-        # Show the heading prominently
-        clean_heading = heading.lstrip("#").strip()
-        if clean_heading:
-            st.subheader(f"📖 {clean_heading}")
-
-        # Render the body in a styled container
-        st.markdown(body)
-    else:
-        # Fallback: show the full corpus as a last resort
-        corpus_path = os.path.join("data", "corpus", f"{domain}.md")
-        if os.path.exists(corpus_path):
-            with open(corpus_path, encoding="utf-8") as _f:
-                st.info("⚠️ Could not find a dedicated section — showing full course notes.")
-                st.markdown(_f.read())
-        else:
-            st.error(
-                "Study material not found. Please contact your researcher."
-            )
+        with st.expander(
+            f"� Topic {i + 1} of {done}: {topic_label}",
+            expanded=(i == 0),   # first topic open by default
+        ):
+            if notes:
+                lines = notes.strip().splitlines()
+                # Remove the H2 heading line (already shown in expander title)
+                body = "\n".join(
+                    l for l in lines
+                    if not l.strip().startswith("## ")
+                ).strip()
+                st.markdown(body)
+            else:
+                st.warning(f"Study material not found for {topic_label}.")
 
     st.divider()
-    if st.button("I have studied this topic — continue to practice ▶", type="primary"):
+    st.success(
+        "✅ Once you have read all 5 topics above, click the button below to start the practice questions.  \n"
+        "You will answer **5 questions per topic** (25 total). Your answers are recorded for the research study."
+    )
+
+    if st.button(
+        "I have read all topics — Start Practice Questions ▶",
+        type="primary",
+        use_container_width=True,
+    ):
+        # Reset traditional_index to 0 so practice starts from Topic 1
+        ls = dict(ls)
+        ls["traditional_index"] = 0
+        st.session_state.practice_answers = {}
         _save(ls, "traditional_practice")
+        st.session_state.ls    = ls
         st.session_state.phase = "traditional_practice"
         st.rerun()
+
 
 def phase_traditional_practice():
     """
@@ -1114,11 +1129,23 @@ def phase_traditional_practice():
         return
     qs = section["questions"]
 
-    st.title(f"📝 Practice — {_label(topic)} ({idx + 1}/{done})")
+    st.title(f"📝 Practice — {_label(topic)} ({idx + 1} of {done})")
+
+    # Progress: show how many topics done
+    st.progress((idx) / done, text=f"Practice topics: {idx}/{done} complete")
+
+    # Quick-reference reminder pulled from corpus
+    from src.notes import topic_notes as _tn
+    reminder = _tn(domain, topic)
+    if reminder:
+        with st.expander(f"📖 Review notes for {_label(topic)} (click to open)", expanded=False):
+            lines = reminder.strip().splitlines()
+            body  = "\n".join(l for l in lines if not l.strip().startswith("## ")).strip()
+            st.markdown(body)
+
     st.info(
-        f"Answer the **{len(qs)} practice questions** for *{_label(topic)}*.  \n"
-        "Your answers are recorded for the study but **do not change the next "
-        "topic** — the path is the same for every student in this group."
+        f"Answer all **{len(qs)} questions** for *{_label(topic)}*.  \n"
+        "Your score is **recorded for the research study** but does not change the order of topics."
     )
 
     # ── Review screen: score + correct answers + Continue ────────────────────────
@@ -1207,7 +1234,8 @@ def phase_traditional_practice():
         # the fixed topic order, whatever the result.
         idx += 1
         ls["traditional_index"] = idx
-        next_phase = "posttest" if idx >= done else "traditional"
+        # Reading is done upfront — next phase is always practice (or posttest)
+        next_phase = "posttest" if idx >= done else "traditional_practice"
         _save(ls, next_phase)            # persisted for session resume
         st.session_state.ls = ls
 
