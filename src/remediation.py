@@ -25,7 +25,8 @@ Avoiding infinite loops (spec §12):
 
 from __future__ import annotations
 
-MAX_REMEDIATION_ATTEMPTS = 2   # spec §12 recommended value
+MAX_REMEDIATION_ATTEMPTS = 1   # topic appears max twice: original + 1 retry
+                               # (spec §12 recommended 2-3; reduced to 1 for pilot UX)
 
 # Threshold below which we attempt remediation (same as Monitor's DRIFT_THRESHOLD)
 _REMEDIATION_MASTERY_THRESHOLD = 0.45

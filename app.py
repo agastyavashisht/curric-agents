@@ -741,70 +741,169 @@ def phase_pretest():
     st.title(f"📋 Pre-Test — {DOMAINS[domain]}")
 
     if sectioned:
-        # ── New sectioned format: one collapsible section per topic ──────────
-        st.info(
-            f"This test has **{len(test_data)} sections** — one per topic — "
-            f"with **5 questions each** ({len(test_data) * 5} questions total).  \n"
-            "Answer every question. **No feedback is given.** Submit when done."
+        # ── STEPPER: one section (topic) at a time — no scrolling ────────────
+        total_secs = len(test_data)
+
+        # Track which section the student is currently on
+        cur_sec = st.session_state.get("_pretest_section", 0)
+        if cur_sec >= total_secs:
+            cur_sec = total_secs - 1
+        section = test_data[cur_sec]
+
+        # ── Header: step indicator ────────────────────────────────────────────
+        topic_label = section.get("title", _label(section["topic"]))
+        completed_secs = sum(
+            1 for s in test_data
+            if all(q["id"] in answers for q in s["questions"])
         )
 
-        # Progress bar — how many questions answered so far
-        total_qs     = sum(len(s["questions"]) for s in test_data)
-        answered_qs  = sum(1 for s in test_data
-                           for q in s["questions"] if q["id"] in answers)
+        # Step dots: ✅ done | ▶ current | ○ not yet
+        dots = []
+        for i, s in enumerate(test_data):
+            all_answered = all(q["id"] in answers for q in s["questions"])
+            if all_answered:
+                dots.append("✅")
+            elif i == cur_sec:
+                dots.append("▶")
+            else:
+                dots.append("○")
+        st.markdown(
+            f"**Section {cur_sec + 1} of {total_secs}**  •  "
+            + "  ".join(dots)
+        )
         st.progress(
-            answered_qs / total_qs if total_qs else 0,
-            text=f"Answered {answered_qs} / {total_qs} questions"
+            (cur_sec) / total_secs,
+            text=f"{topic_label}  ({completed_secs}/{total_secs} sections complete)"
         )
+        st.info("**No feedback is given during this test.** Answer all 5 questions and click Next.")
+        st.markdown(f"### {topic_label}")
+        st.markdown("---")
 
-        with st.form("pretest_form"):
-            for sec_idx, section in enumerate(test_data):
-                topic_label = section.get("title", section["topic"].replace("_", " ").title())
-                answered_in_sec = sum(1 for q in section["questions"] if q["id"] in answers)
-                sec_done = answered_in_sec == len(section["questions"])
-                icon = "✅" if sec_done else "📝"
+        # ── 5 questions for this section ──────────────────────────────────────
+        with st.form(f"pretest_form_sec{cur_sec}"):
+            for q_idx, q in enumerate(section["questions"]):
+                st.markdown(f"**Q{q_idx + 1}. {q['prompt']}**")
+                current_answer = answers.get(q["id"])
+                answers[q["id"]] = st.radio(
+                    f"Answer for {q['id']}",
+                    options=list(range(len(q["options"]))),
+                    format_func=lambda i, opts=q["options"]: f"{chr(65+i)}. {opts[i]}",
+                    key=f"pre_{q['id']}",
+                    index=current_answer if current_answer is not None else None,
+                    label_visibility="collapsed",
+                )
+                if q_idx < len(section["questions"]) - 1:
+                    st.markdown("---")
 
-                with st.expander(f"{icon} {topic_label}  ({answered_in_sec}/{len(section['questions'])} answered)", expanded=not sec_done):
-                    for q_idx, q in enumerate(section["questions"]):
-                        st.markdown(f"**Q{q_idx+1}. {q['prompt']}**")
-                        # Use None as default so unanswered questions are not silently submitted
-                        current_answer = answers.get(q["id"])
-                        radio_opts     = list(range(len(q["options"])))
-                        answers[q["id"]] = st.radio(
-                            f"Answer for {q['id']}",
-                            options=radio_opts,
-                            format_func=lambda i, opts=q["options"]: f"{chr(65+i)}. {opts[i]}",
-                            key=f"pre_{q['id']}",
-                            index=current_answer if current_answer is not None else None,
-                            label_visibility="collapsed",
-                        )
-                        if q_idx < len(section["questions"]) - 1:
-                            st.markdown("---")
+            st.markdown("")
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+            with col_prev:
+                prev_btn = st.form_submit_button(
+                    "← Previous",
+                    disabled=(cur_sec == 0),
+                    use_container_width=True,
+                )
+            with col_info:
+                # Check if all qs in this section answered
+                unanswered = [q for q in section["questions"] if answers.get(q["id"]) is None]
+                if unanswered:
+                    st.caption(f"⚠️ {len(unanswered)} question(s) not answered yet")
+                else:
+                    st.caption("✅ All questions in this section answered")
+            with col_next:
+                is_last = (cur_sec == total_secs - 1)
+                next_btn = st.form_submit_button(
+                    "Submit Test ✓" if is_last else "Next →",
+                    type="primary",
+                    use_container_width=True,
+                )
 
-            st.divider()
-            st.caption(f"Make sure all {total_qs} questions are answered before submitting.")
-            already_submitted = st.session_state.get("_pretest_submitted", False)
-            submitted = st.form_submit_button(
-                "Submit Pre-Test ✓", type="primary",
-                use_container_width=True,
-                disabled=already_submitted,
-            )
-            if submitted:
-                st.session_state["_pretest_submitted"] = True
+        # Save current answers to session state
+        st.session_state.test_answers = answers
 
-        if submitted:
-            n_correct, n_total, per_topic = _score_sectioned(test_data, answers)
-            score_pct = round(n_correct / n_total * 100, 1) if n_total else 0.0
+        if prev_btn:
+            st.session_state["_pretest_section"] = max(0, cur_sec - 1)
+            st.rerun()
 
-            # Show per-topic breakdown before proceeding
-            st.success(f"✅ Pre-test submitted! Overall score: **{score_pct}%** ({n_correct}/{n_total})")
-            with st.expander("Per-topic scores"):
-                for topic, s in per_topic.items():
-                    label = topic.replace("_", " ").title()
-                    bar   = "█" * s["correct"] + "░" * (s["total"] - s["correct"])
-                    st.markdown(f"**{label}**: {s['correct']}/{s['total']}  `{bar}`  {s['pct']}%")
+        if next_btn:
+            # Warn if unanswered in this section but don't block
+            unanswered = [q for q in section["questions"] if answers.get(q["id"]) is None]
+            if unanswered:
+                st.warning(f"⚠️ You have {len(unanswered)} unanswered question(s) in this section. "
+                           "They will be counted as wrong. Click Next again to continue anyway.")
+                st.session_state["_pretest_next_warned"] = True
+            elif not is_last:
+                # Move to next section
+                st.session_state["_pretest_section"] = cur_sec + 1
+                st.session_state["_pretest_next_warned"] = False
+                st.rerun()
+            else:
+                # Last section — submit
+                # Check ALL sections for unanswered questions
+                all_unanswered = sum(
+                    1 for s in test_data for q in s["questions"]
+                    if answers.get(q["id"]) is None
+                )
+                if all_unanswered > 0 and not st.session_state.get("_pretest_submit_warned"):
+                    st.warning(
+                        f"⚠️ You have **{all_unanswered} unanswered question(s)** across all sections. "
+                        "They will be counted as wrong. Click Submit again to confirm."
+                    )
+                    st.session_state["_pretest_submit_warned"] = True
+                else:
+                    # Submit
+                    n_correct, n_total, per_topic = _score_sectioned(test_data, answers)
+                    score_pct = round(n_correct / n_total * 100, 1) if n_total else 0.0
 
-            save_pilot_score(
+                    st.success(f"✅ Pre-test submitted! Overall: **{score_pct}%** ({n_correct}/{n_total})")
+                    for topic, s in per_topic.items():
+                        bar = "█" * s["correct"] + "░" * (s["total"] - s["correct"])
+                        st.markdown(f"**{_label(topic)}**: {s['correct']}/{s['total']}  `{bar}`  {s['pct']}%")
+
+                    save_pilot_score(
+                        student_id=ls["student_id"], domain=domain, test_type="pretest",
+                        score_pct=score_pct, n_correct=n_correct, n_total=n_total,
+                        group_label=st.session_state.get("group", "experimental"),
+                        ablation_mode=st.session_state.get("ablation", "full"),
+                        db_path=DB_PATH,
+                    )
+                    ls = dict(ls)
+                    ls["pretest_score_pct"] = score_pct
+                    ls["pretest_per_topic"] = per_topic
+                    st.session_state.pretest_score = score_pct
+                    st.session_state.test_answers  = {}
+                    st.session_state["_pretest_section"] = 0
+                    st.session_state["_pretest_submit_warned"] = False
+                    st.session_state.ls = ls
+
+                    if st.session_state.get("group") == "control":
+                        ls = dict(ls)
+                        ls["traditional_index"] = 0
+                        st.session_state.practice_answers = {}
+                        _save(ls, "traditional")
+                        st.session_state.phase = "traditional"
+                    else:
+                        ls = planner_agent(ls)
+                        _save(ls, "gen_lesson")
+                        st.session_state.ls = ls
+                        st.session_state.phase = "gen_lesson"
+                    st.rerun()
+
+        # "Go to section" nav at bottom — quick jump to any section
+        if total_secs > 1:
+            st.markdown("---")
+            st.caption("Jump to a section:")
+            nav_cols = st.columns(total_secs)
+            for i, s in enumerate(test_data):
+                all_answered = all(q["id"] in answers for q in s["questions"])
+                sec_title    = s.get("title", _label(s["topic"])).replace("Section ", "S")
+                sec_label    = f"{'✅' if all_answered else '▶' if i == cur_sec else '○'} {i+1}"
+                with nav_cols[i]:
+                    if st.button(sec_label, key=f"_pre_nav_{i}",
+                                 type="primary" if i == cur_sec else "secondary",
+                                 use_container_width=True):
+                        st.session_state["_pretest_section"] = i
+                        st.rerun()
                 student_id=ls["student_id"], domain=domain, test_type="pretest",
                 score_pct=score_pct, n_correct=n_correct, n_total=n_total,
                 group_label=st.session_state.get("group", "experimental"),
@@ -927,9 +1026,29 @@ def phase_traditional():
     notes = topic_notes(domain, topic)
     if notes:
         st.markdown("---")
-        st.markdown(notes)
+        # Split into heading + body for cleaner display
+        lines = notes.strip().splitlines()
+        heading = lines[0] if lines else ""
+        body    = "\n".join(lines[1:]).strip() if len(lines) > 1 else notes
+
+        # Show the heading prominently
+        clean_heading = heading.lstrip("#").strip()
+        if clean_heading:
+            st.subheader(f"📖 {clean_heading}")
+
+        # Render the body in a styled container
+        st.markdown(body)
     else:
-        st.warning("Study material not found for this topic.")
+        # Fallback: show the full corpus as a last resort
+        corpus_path = os.path.join("data", "corpus", f"{domain}.md")
+        if os.path.exists(corpus_path):
+            with open(corpus_path, encoding="utf-8") as _f:
+                st.info("⚠️ Could not find a dedicated section — showing full course notes.")
+                st.markdown(_f.read())
+        else:
+            st.error(
+                "Study material not found. Please contact your researcher."
+            )
 
     st.divider()
     if st.button("I have studied this topic — continue to practice ▶", type="primary"):
@@ -1259,21 +1378,45 @@ def phase_gen_lesson():
 
     bloom_plan  = {b["topic"]: b for b in ls.get("bloom_plan", [])}
     b_info      = bloom_plan.get(topic, {})
-    bloom_badge = f" — _{b_info.get('bloom_level','').title()} level_" if b_info else ""
     mastery_pct = ls.get("mastery", {}).get(topic, 0.0)
+    bloom_level = b_info.get("bloom_level", "understand")
 
-    st.title(f"📘 {_label(topic)} — {DOMAINS[ls['domain']]}{bloom_badge}")
-    st.caption(f"Current mastery: {mastery_pct:.0%}  |  Gap: {1-mastery_pct:.0%}  |  "
-               f"Question style: **{b_info.get('bloom_level','standard')}** level")
+    # ── Overall progress header ───────────────────────────────────────────────
+    all_topics   = _load_all_topics(ls["domain"])
+    done_topics  = [t for t in all_topics
+                    if ls.get("mastery", {}).get(t, 0.0) >= 0.70
+                    or (t in (ls.get("topics_attempted") or []) and t != topic)]
+    total_topics = max(len(all_topics), 1)
+    topics_done_n = st.session_state.get("topics_done", 0)
+    q_done_n      = st.session_state.get("q_done", 0)
+    q_total_n     = st.session_state.get("q_per_topic", 5)
 
-    # Remediation banner — the student is re-learning a topic that didn't stick
+    # Remediation state
     rem_attempt = (ls.get("engagement", {})
                    .get("remediation_counts", {}).get(topic, 0))
-    if rem_attempt:
+    is_remediation = rem_attempt > 0
+
+    # ── Topic title with round indicator ─────────────────────────────────────
+    if is_remediation:
+        st.title(f"🔄 {_label(topic)}  (Round {rem_attempt + 1} of {MAX_REMEDIATION_ATTEMPTS + 1})")
         st.warning(
-            f"🔄 **Remediation round {rem_attempt}/{MAX_REMEDIATION_ATTEMPTS}** — "
-            f"let's look at *{_label(topic)}* from a different angle with new examples."
+            f"**You're revisiting this topic** — you need a bit more practice here.  \n"
+            f"This is a **fresh explanation** from a different angle. "
+            f"The questions will also be new. You can do this! 💪"
         )
+    else:
+        st.title(f"📘 {_label(topic)}")
+
+    # Progress bar: topics done + current question
+    col_prog, col_info = st.columns([3, 1])
+    with col_prog:
+        st.progress(
+            min(topics_done_n / total_topics, 1.0),
+            text=f"Topic {topics_done_n + 1} of {total_topics}  •  Question {q_done_n + 1} of {q_total_n}"
+        )
+    with col_info:
+        st.caption(f"Mastery: **{mastery_pct:.0%}**  |  Level: **{bloom_level}**")
+
     _show_history()
 
     from src.config import FallbackLLMError

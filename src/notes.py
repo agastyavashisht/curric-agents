@@ -68,7 +68,7 @@ _TOPIC_HEADING_ALIASES: dict[str, list[str]] = {
     "control_flow":         ["control flow", "conditionals", "if", "elif"],
     "loops":                ["loops", "iteration", "for loop", "while loop"],
     "functions":            ["functions", "def ", "parameters", "return"],
-    "oop_basics":           ["oop", "object", "class", "inheritance"],
+    "oop_basics":           ["oop basics", "oop", "object-oriented", "classes", "class"],
     "ml_introduction":      ["machine learning", "ml introduction", "introduction"],
     "data_preprocessing":   ["preprocessing", "data cleaning", "normalization"],
     "linear_regression":    ["linear regression"],
@@ -123,13 +123,18 @@ def topic_notes(domain: str, topic: str) -> str | None:
     parts = re.split(r"\n(?=## )", raw)
 
     # Try to match the best section for this topic
+    # Use whole-word or start-of-word matching to avoid "oop" matching "loops"
     aliases = _TOPIC_HEADING_ALIASES.get(topic, [topic.replace("_", " ")])
     best_section: str | None = None
 
     for part in parts:
         heading_line = part.splitlines()[0].lower() if part.strip() else ""
         for alias in aliases:
-            if alias.lower() in heading_line:
+            al = alias.lower()
+            # Require the alias to appear as a whole word or phrase
+            # (not as a substring of another word, e.g. "oop" inside "loops")
+            pattern = r'\b' + re.escape(al)
+            if re.search(pattern, heading_line):
                 best_section = part.strip()
                 break
         if best_section:
