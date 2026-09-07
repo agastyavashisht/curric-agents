@@ -9,6 +9,7 @@ from typing import TypedDict, List, Dict, Optional, Any
 class LearnerState(TypedDict):
     student_id: str
     domain: str
+    group: str                      # "experimental" | "control"  (persisted arm assignment)
 
     # --- written by Planner ---
     topic_sequence: List[str]        # ordered list of topic ids remaining to teach
@@ -37,12 +38,21 @@ class LearnerState(TypedDict):
     step_count: int
     current_phase: str   # last known Streamlit phase — used to resume interrupted sessions
 
+    # --- research experiment fields (spec §17) ---
+    traditional_index: int               # Traditional/control group: index into the fixed topic order
+    topics_attempted: List[str]          # topics the student actually studied/answered this experiment
+    needs_review: Dict[str, bool]        # topic_id -> True once remediation cap is hit (scheduled later review)
+    practice_scores: Dict[str, Any]      # topic_id -> {"correct", "total", "pct"} per-topic practice assessment
+    posttest_per_topic: Optional[Dict[str, Any]] # topic-level post-test scores (correct/total/pct)
+    posttest_score_pct: Optional[float]  # overall post-test percentage
 
-def new_state(student_id: str, domain: str) -> LearnerState:
+
+def new_state(student_id: str, domain: str, group: str = "experimental") -> LearnerState:
     """A fresh state for a student who has no prior history in this domain."""
     return LearnerState(
         student_id=student_id,
         domain=domain,
+        group=group,
         topic_sequence=[],
         topic_pointer=None,
         bloom_plan=[],
@@ -55,9 +65,20 @@ def new_state(student_id: str, domain: str) -> LearnerState:
         mastery={},
         last_reviewed={},
         misconceptions={},
-        engagement={"response_latency": [], "hint_requests": 0, "session_count": 0},
+        engagement={
+            "response_latency": [], "hint_requests": 0, "session_count": 0,
+            # research counters (spec §17) — remediation_counts reset per session
+            "remediation_counts": {}, "total_replans": 0, "total_remediations": 0,
+            "learning_time_sec": 0.0, "last_activity_ts": 0.0,
+        },
         replan_flag=False,
         session_history=[],
         step_count=0,
         current_phase="pretest",
+        traditional_index=0,
+        topics_attempted=[],
+        needs_review={},
+        practice_scores={},
+        posttest_per_topic=None,
+        posttest_score_pct=None,
     )

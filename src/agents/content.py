@@ -68,6 +68,33 @@ def content_node(state: LearnerState) -> LearnerState:
     bloom_entry = next((b for b in bloom_plan if b["topic"] == topic), None)
     bloom_level = bloom_entry["bloom_level"] if bloom_entry else "understand"
 
+    # Remediation mode: student failed this topic before (spec §11).
+    # The Content agent must NOT just repeat the same explanation — it is told
+    # to produce a different lesson and to address the student's misconceptions.
+    remediation_attempt = (
+        state.get("engagement", {}).get("remediation_counts", {}).get(topic, 0)
+    )
+    remediation_hint = ""
+    if remediation_attempt:
+        misconceptions = state.get("misconceptions", {}).get(topic, [])
+        remediation_hint = (
+            f"\n\nThis is remediation attempt #{remediation_attempt} for this student on "
+            f"'{topic}'.\n"
+            "The student did NOT master the topic on the previous attempt, so write a "
+            "COMPLETELY DIFFERENT lesson:\n"
+            "  - use a different analogy, different framing and a different worked example\n"
+            "  - lead with the specific misconception(s) the student has: "
+            f"{misconceptions or 'unspecified'}\n"
+            "  - keep it short, concrete and encouraging\n"
+        )
+        prev = state.get("current_material")
+        if prev:
+            remediation_hint += (
+                "\nThe previous lesson was NOT effective. It read:\n---\n"
+                + json.dumps(prev)[:1500]
+                + "\n---\nDo NOT reuse that text or that example."
+            )
+
     llm = get_llm("content")
     prompt = _PROMPT_TEMPLATE.format(
         topic=topic,
@@ -77,7 +104,7 @@ def content_node(state: LearnerState) -> LearnerState:
         bloom_level=bloom_level,
         misconceptions=state["misconceptions"].get(topic, []),
         context=context,
-    )
+    ) + remediation_hint
 
     response = llm.invoke(prompt)
     raw = _strip_fences(extract_content(response))
@@ -98,6 +125,7 @@ def content_node(state: LearnerState) -> LearnerState:
         "objective": objective,
         "explanation": material.get("explanation", ""),
         "n_retrieved_chunks": len(retrieved_chunks),
+        "remediation_attempt": remediation_attempt,
     })
 
     state["session_history"] = state["session_history"] + [

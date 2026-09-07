@@ -3,16 +3,25 @@ CurricAgents — Pilot Study Web App
 ===================================
 Multi-Agent LLM System for Autonomous Curriculum Planning and Adaptive Assessment
 
-Flow per student per domain:
-  1. login        — enter student ID, pick domain & group
-  2. pretest      — 10-MCQ timed pre-test (no feedback), score saved to DB
-  3. gen_lesson   — Content agent retrieves corpus + calls LLM → explanation
-  4. answering    — student answers MCQ or short-answer question
-  5. gen_feedback — Assessment agent grades, Monitor updates mastery, replan if needed
-  6. posttest     — 10-MCQ post-test (no feedback), score saved
-  7. done         — mastery summary + learning gain shown
+Experimental design (Traditional vs AI):
+  1. login        — enter student ID; group auto-assigned from ID parity
+                    (odd = AI/experimental, even = Traditional/control)
+  2. pretest      — SAME 25-question sectioned pre-test for both groups
+                    (5 questions/topic, no feedback), score saved
+  3. learning     — AI group:      planner → content → assessment → monitor
+                                   closed loop; max 2 remediations per topic,
+                                   then topic is marked needs_review and
+                                   re-scheduled for a later review.
+                    Traditional:   fixed topic order (Variables → Control Flow
+                                   → Loops → Functions → OOP) with corpus notes
+                                   + a FIXED 25-question practice bank
+                                   (5 questions/topic) that never changes the
+                                   learning path.
+  4. posttest     — SAME 25-question post-test for both groups (no feedback)
+  5. done         — mastery summary + learning gain shown
 
-Sidebar shows live mastery bars and agent activity log.
+Both groups record total_learning_time, replans, remediations and per-topic
+scores (spec §17) so the research comparison (learning gain §18) is fair (§19).
 
 Run:
     streamlit run app.py
@@ -33,11 +42,13 @@ except ImportError:
 
 from src.config import DB_PATH
 from src.memory.store import load_state, save_state
-from src.agents.planner import planner_agent
+from src.agents.planner import planner_agent, _load_graph
 from src.agents.content import content_agent
 from src.agents.monitor import monitor_agent
 from src.agents.assessment import assessment_prepare_agent, apply_grade
 from src.graph import advance_topic as _advance
+from src.remediation import topic_end_decision, MAX_REMEDIATION_ATTEMPTS
+from src.notes import topic_order, topic_notes
 from src.db import log_assessment, save_pilot_score, get_pilot_scores, get_assessment_log, save_survey_response, get_survey_responses
 
 # ── page config ──────────────────────────────────────────────────────────────
@@ -93,6 +104,19 @@ POSTTEST_FILES = {
     "signal_processing":  "data/posttest_signal_processing.json",
     "physiology_basics":  "data/posttest_physiology_basics.json",
     "data_analysis":      "data/posttest_data_analysis.json",
+}
+
+# Fixed practice bank used ONLY by the Traditional/control group (spec §4).
+# 25 questions (5 per topic), intentionally distinct from the pre-test and
+# post-test questions — the control arm's practice never changes its path.
+PRACTICE_FILES = {
+    "python_programming": "data/practice_python.json",
+    # Other domains default to Python practice — only python_programming is active
+    # in the pilot. Future domains should have their own practice banks.
+    "ml_basics":          "data/practice_python.json",
+    "signal_processing":  "data/practice_python.json",
+    "physiology_basics":  "data/practice_python.json",
+    "data_analysis":      "data/practice_python.json",
 }
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -263,11 +287,40 @@ def _chart_group_means(pivot: pd.DataFrame) -> None:
 
 
 def _save(ls: dict, phase: str) -> None:
-    """Save state and record the current phase for session resume."""
+    """Save state and record the current phase for session resume.
+
+    Also accumulates wall-clock learning time (spec §19): every save adds the
+    time elapsed since the previous save, which gives a good approximation of
+    how long the student actually spent on the current screen.
+    """
     ls = dict(ls)
     ls["current_phase"] = phase
+    eng = dict(ls.get("engagement", {}))
+    now = time.time()
+    last = eng.get("last_activity_ts")
+    if last:
+        eng["learning_time_sec"] = (
+            eng.get("learning_time_sec", 0.0) + (now - float(last))
+        )
+    eng["last_activity_ts"] = now
+    ls["engagement"] = eng
     st.session_state.ls = ls
     save_state(DB_PATH, ls)
+
+
+def _ensure_engagement(ls: dict) -> dict:
+    """Back-fill engagement research counters on states saved before they existed."""
+    eng = dict(ls.get("engagement", {}))
+    for k, v in {
+        "remediation_counts": {},
+        "total_replans": 0,
+        "total_remediations": 0,
+        "learning_time_sec": 0.0,
+        "last_activity_ts": 0.0,
+    }.items():
+        eng.setdefault(k, v)
+    ls["engagement"] = eng
+    return ls
 
 
 def _grade(state: dict, answer: str) -> dict:
@@ -307,7 +360,8 @@ def _sidebar():
     st.sidebar.title("🎓 CurricAgents")
     phase = st.session_state.get("phase", "login")
 
-    if phase in ("pretest", "traditional", "gen_lesson", "answering", "gen_feedback", "posttest", "done"):
+    if phase in ("pretest", "traditional", "traditional_practice", "gen_lesson",
+                 "answering", "gen_feedback", "posttest", "done"):
         ls = st.session_state.get("ls")
         if ls:
             domain_label = DOMAINS.get(ls["domain"], ls["domain"])
@@ -321,31 +375,69 @@ def _sidebar():
             mastery    = ls.get("mastery", {})
             bloom_plan = {b["topic"]: b for b in ls.get("bloom_plan", [])}
             current    = ls.get("topic_pointer")
-            for t in all_topics:
+            is_ctrl    = ls.get("group") == "control"
+            trad_idx   = int(ls.get("traditional_index", 0))
+            trad_order = []
+            if is_ctrl:
+                try:
+                    from src.notes import topic_order as _topic_order
+                    trad_order = _topic_order(ls["domain"])
+                except Exception:
+                    pass
+
+            for i, t in enumerate(all_topics):
                 s      = mastery.get(t, 0.0)
                 bar    = "█" * int(s * 10) + "░" * (10 - int(s * 10))
                 prefix = "▶ " if t == current else "  "
                 b_info = bloom_plan.get(t)
                 bloom  = f" _{b_info['bloom_level']}_" if b_info else ""
-                # strike through mastered topics not in the current plan
-                if t not in (ls.get("topic_sequence", []) + ([current] if current else [])) \
-                        and s >= 0.7:
-                    label = f"~~{_label(t)}~~ ✓"
+
+                if is_ctrl:
+                    # Control group: show topic completion status, not mastery %
+                    if trad_order and i < len(trad_order):
+                        trad_pos = trad_order.index(t) if t in trad_order else -1
+                        if trad_pos < trad_idx:
+                            label  = f"~~{_label(t)}~~ ✓"
+                            prefix = "  "
+                        elif trad_pos == trad_idx:
+                            label  = f"**{_label(t)}** ← current"
+                            prefix = "▶ "
+                        else:
+                            label  = f"{_label(t)}"
+                    else:
+                        label = f"{_label(t)}"
+                    st.sidebar.markdown(f"{prefix} {label}")
                 else:
-                    label = f"**{_label(t)}**"
-                st.sidebar.markdown(
-                    f"{prefix}{_color(s)} {label}{bloom}  \n`{bar}` {s:.0%}"
-                )
+                    # Experimental group: show mastery bars
+                    if t not in (ls.get("topic_sequence", []) + ([current] if current else [])) \
+                            and s >= 0.7:
+                        label = f"~~{_label(t)}~~ ✓"
+                    else:
+                        label = f"**{_label(t)}**"
+                    st.sidebar.markdown(
+                        f"{prefix}{_color(s)} {label}{bloom}  \n`{bar}` {s:.0%}"
+                    )
 
             st.sidebar.divider()
-            done = st.session_state.get("topics_done", 0)
-            total = st.session_state.get("max_topics", 3)
-            q_done = st.session_state.get("q_done", 0)
-            q_total = st.session_state.get("q_per_topic", 3)
-            st.sidebar.progress(
-                min(done / max(total, 1), 1.0),
-                text=f"Topics {done}/{total}  •  Q {q_done}/{q_total}"
-            )
+            is_control = ls.get("group") == "control"
+            if is_control:
+                # Control arm shows fixed topic-order progress (spec §16)
+                order = topic_order(ls["domain"])
+                done  = min(int(ls.get("traditional_index", 0)), len(order))
+                total = max(len(order), 1)
+                st.sidebar.progress(
+                    min(done / total, 1.0),
+                    text=f"Topics {done}/{total}  •  Fixed path"
+                )
+            else:
+                done = st.session_state.get("topics_done", 0)
+                total = st.session_state.get("max_topics", 5)
+                q_done = st.session_state.get("q_done", 0)
+                q_total = st.session_state.get("q_per_topic", 5)
+                st.sidebar.progress(
+                    min(done / max(total, 1), 1.0),
+                    text=f"Topics {done}/{total}  •  Q {q_done}/{q_total}"
+                )
 
     # Researcher dashboard link
     st.sidebar.divider()
@@ -445,9 +537,10 @@ def phase_login():
         with st.expander("ℹ️ How this study works"):
             st.markdown("""
 **You will:**
-1. Answer a **10-question pre-test** (about 5 minutes, no feedback)
-2. Complete a **learning session** — the AI will teach topics and quiz you
-3. Answer a **10-question post-test** (about 5 minutes, no feedback)
+1. Answer a **25-question pre-test** (5 questions per topic, no feedback)
+2. Complete a **learning session** — the system teaches all 5 Python topics and
+   quizzes you with **5 practice questions per topic**
+3. Answer the **same 25-question post-test** (no feedback)
 4. Fill in a **short questionnaire** (about 1 minute)
 
 **Total time:** approximately 45–60 minutes.
@@ -475,8 +568,8 @@ You can stop at any time without penalty.
                     "Ablation mode", list(ABLATION_MODES.keys()),
                     format_func=lambda k: ABLATION_MODES[k], key="r_abl"
                 )
-                r_topics = st.slider("Max topics", 1, 10, 4, key="r_top")
-                r_qpt    = st.slider("Questions per topic", 1, 5, 3, key="r_qpt")
+                r_topics = st.slider("Max topics", 1, 10, 5, key="r_top")
+                r_qpt    = st.slider("Questions per topic", 1, 5, 5, key="r_qpt")
                 if st.button("Start as Researcher ▶", key="r_go"):
                     _start_session(
                         sid.strip() or "RESEARCHER",
@@ -489,8 +582,8 @@ You can stop at any time without penalty.
     if go and sid.strip():
         _start_session(
             sid.strip(), domain, group, ablation,
-            max_topics=int(_env("PILOT_MAX_TOPICS", "4")),
-            q_per_topic=int(_env("PILOT_QPT", "3")),
+            max_topics=int(_env("PILOT_MAX_TOPICS", "5")),
+            q_per_topic=int(_env("PILOT_QPT", "5")),
         )
 
 
@@ -499,15 +592,23 @@ def _start_session(
     domain: str,
     group: str,
     ablation: str,
-    max_topics: int = 4,
-    q_per_topic: int = 3,
+    max_topics: int = 5,
+    q_per_topic: int = 5,
 ) -> None:
     """Initialise session state and navigate to the correct phase."""
     from src.memory.store import load_state
     ls = load_state(DB_PATH, sid, domain)
     ls = dict(ls)
     ls["ablation_mode"] = ablation
+    ls["group"]         = group
+    ls                  = _ensure_engagement(ls)
+    # New session -> fresh remediation budget for this session (spec §12 cap is
+    # per session; cumulative totals stay in total_replans/total_remediations).
+    ls["engagement"]["remediation_counts"] = {}
     ls["engagement"]["session_count"] = ls["engagement"].get("session_count", 0) + 1
+    ls["engagement"]["last_activity_ts"] = time.time()   # start the learning-time clock
+    if "traditional_index" not in ls:
+        ls["traditional_index"] = 0
 
     # ── Determine what the student should do this session ─────────────────────
     saved_phase = ls.get("current_phase", "pretest")
@@ -521,23 +622,22 @@ def _start_session(
 
     if has_posttest:
         # Research study is complete (pre+post done).
-        # But allow the student to keep practising weak topics in "practice" mode.
-        # Check if there are any topics still below mastery threshold.
-        weak_topics = [
-            t for t, m in ls.get("mastery", {}).items()
-            if m < MASTERY_THRESHOLD_PRACTICE
-        ]
-        remaining_sequence = ls.get("topic_sequence", [])
-
-        if remaining_sequence or weak_topics:
-            # There are still lagging topics — offer practice mode
-            resume_phase = "practice_menu"
-        else:
-            # All topics mastered — genuinely done
+        # Control group: mastery is never updated via BKT so skip the mastery check.
+        # Experimental group: offer practice if weak topics remain.
+        if group == "control":
             resume_phase = "done"
+        else:
+            weak_topics        = [t for t, m in ls.get("mastery", {}).items()
+                                  if m < MASTERY_THRESHOLD_PRACTICE]
+            remaining_sequence = ls.get("topic_sequence", [])
+            if remaining_sequence or weak_topics:
+                resume_phase = "practice_menu"
+            else:
+                resume_phase = "done"
 
     elif has_pretest and saved_phase in ("gen_lesson", "answering",
-                                         "gen_feedback", "traditional"):
+                                         "gen_feedback", "traditional",
+                                         "traditional_practice"):
         # Pre-test done, still in learning phase — resume exactly where left off
         resume_phase = saved_phase
 
@@ -556,12 +656,27 @@ def _start_session(
 
     # Run planner for experimental group when starting fresh learning
     if group == "experimental" and ablation != "static":
-        if resume_phase in ("pretest", "gen_lesson") and not has_pretest:
-            # First session — plan before pretest
-            ls = planner_agent(ls)
-        elif resume_phase == "gen_lesson" and has_pretest:
-            # Returning for more learning — replan with current mastery
-            ls = planner_agent(ls)
+        needs_plan = (
+            (resume_phase in ("pretest", "gen_lesson") and not has_pretest)
+            or (resume_phase == "gen_lesson" and has_pretest)
+        )
+        if needs_plan:
+            try:
+                # Planner makes an LLM call — catch all errors so login never crashes
+                ls = planner_agent(ls)
+            except Exception as e:
+                # Log but don't block the student — they can still do the pretest
+                print(f"[PLANNER] _start_session planner call failed: {e}")
+                # Set a minimal safe plan so the state is usable
+                from src.agents.planner import _load_graph, _topological_order
+                try:
+                    topics = _load_graph(domain)
+                    topo   = _topological_order(topics, ls.get("mastery", {}))
+                    ls["topic_sequence"] = topo
+                    ls["topic_pointer"]  = topo[0] if topo else None
+                    ls["bloom_plan"]     = []
+                except Exception:
+                    pass
 
     # topics_done: restore from engagement or reset for new learning chunk
     topics_done = ls["engagement"].get("topics_done", 0) if resume_phase != "pretest" else 0
@@ -652,12 +767,15 @@ def phase_pretest():
                 with st.expander(f"{icon} {topic_label}  ({answered_in_sec}/{len(section['questions'])} answered)", expanded=not sec_done):
                     for q_idx, q in enumerate(section["questions"]):
                         st.markdown(f"**Q{q_idx+1}. {q['prompt']}**")
+                        # Use None as default so unanswered questions are not silently submitted
+                        current_answer = answers.get(q["id"])
+                        radio_opts     = list(range(len(q["options"])))
                         answers[q["id"]] = st.radio(
                             f"Answer for {q['id']}",
-                            options=list(range(len(q["options"]))),
+                            options=radio_opts,
                             format_func=lambda i, opts=q["options"]: f"{chr(65+i)}. {opts[i]}",
                             key=f"pre_{q['id']}",
-                            index=answers.get(q["id"], 0),
+                            index=current_answer if current_answer is not None else None,
                             label_visibility="collapsed",
                         )
                         if q_idx < len(section["questions"]) - 1:
@@ -665,8 +783,14 @@ def phase_pretest():
 
             st.divider()
             st.caption(f"Make sure all {total_qs} questions are answered before submitting.")
-            submitted = st.form_submit_button("Submit Pre-Test ✓", type="primary",
-                                              use_container_width=True)
+            already_submitted = st.session_state.get("_pretest_submitted", False)
+            submitted = st.form_submit_button(
+                "Submit Pre-Test ✓", type="primary",
+                use_container_width=True,
+                disabled=already_submitted,
+            )
+            if submitted:
+                st.session_state["_pretest_submitted"] = True
 
         if submitted:
             n_correct, n_total, per_topic = _score_sectioned(test_data, answers)
@@ -696,6 +820,9 @@ def phase_pretest():
             st.session_state.ls = ls
 
             if st.session_state.get("group") == "control":
+                ls = dict(ls)
+                ls["traditional_index"] = 0   # start the fixed learning path
+                st.session_state.practice_answers = {}
                 _save(ls, "traditional")
                 st.session_state.phase = "traditional"
             else:
@@ -739,6 +866,9 @@ def phase_pretest():
             ls["pretest_score_pct"] = score_pct
             st.session_state.ls = ls
             if st.session_state.get("group") == "control":
+                ls = dict(ls)
+                ls["traditional_index"] = 0   # start the fixed learning path
+                st.session_state.practice_answers = {}
                 _save(ls, "traditional")
                 st.session_state.phase = "traditional"
             else:
@@ -750,7 +880,12 @@ def phase_pretest():
 
 
 def phase_traditional():
-    """Control arm: static corpus study materials (no agents)."""
+    """
+    Control arm — fixed per-topic study materials (spec §3).
+    The student studies ONE topic at a time in the fixed order
+    (Variables → Control Flow → Loops → Functions → OOP Basics). The pre-test
+    score NEVER changes this order — no skipping, no personalisation.
+    """
     ls     = st.session_state.ls
     domain = ls["domain"]
     _sidebar()
@@ -762,25 +897,204 @@ def phase_traditional():
         st.session_state.phase = "done"
         st.rerun()
 
-    st.title(f"📚 Study Materials — {DOMAINS[domain]}")
-    st.info(
-        "Read through the course notes below carefully. "
-        "When you are ready, click the button to take the post-test. "
-        "Take your time — there is no time limit on studying."
-    )
-    corpus_path = os.path.join("data", "corpus", f"{domain}.md")
-    if os.path.exists(corpus_path):
-        with open(corpus_path, encoding="utf-8") as f:
-            notes = f.read()
-        st.markdown(notes)
-    else:
-        st.warning("Course notes file not found for this domain.")
+    order = topic_order(domain)
+    done  = len(order)
+    idx   = int(ls.get("traditional_index", 0))
 
-    st.divider()
-    if st.button("I have finished studying — continue to post-test ▶", type="primary"):
+    if not order:
+        st.warning("Topic order not configured for this domain. Moving to post-test.")
         _save(ls, "posttest")
         st.session_state.phase = "posttest"
         st.rerun()
+        return
+
+    if idx >= done:
+        # All topics studied + practised — move to the post-test.
+        st.success("✅ You have finished studying and practising all topics.")
+        if st.button("Continue to the Post-Test ▶", type="primary"):
+            _save(ls, "posttest")
+            st.session_state.phase = "posttest"
+            st.rerun()
+        return
+
+    topic = order[idx]
+    st.title(f"📚 Topic {idx + 1} of {done}: {_label(topic)}")
+    st.progress(idx / done if done else 0,
+                text=f"Topics studied: {idx}/{done}")
+    st.caption("Study the material below carefully. After studying you will "
+               "answer 5 practice questions on this topic.")
+
+    notes = topic_notes(domain, topic)
+    if notes:
+        st.markdown("---")
+        st.markdown(notes)
+    else:
+        st.warning("Study material not found for this topic.")
+
+    st.divider()
+    if st.button("I have studied this topic — continue to practice ▶", type="primary"):
+        _save(ls, "traditional_practice")
+        st.session_state.phase = "traditional_practice"
+        st.rerun()
+
+def phase_traditional_practice():
+    """
+    Control arm — fixed practice assessment (spec §4).
+    5 fixed MCQs per topic from data/practice_python.json. Answers and scores
+    are recorded for the research evaluation but NEVER change the next topic:
+    the student always proceeds through the fixed topic order regardless of
+    performance.
+    """
+    ls     = st.session_state.ls
+    domain = ls["domain"]
+    _sidebar()
+
+    # ── Guard: if post-test already done, skip straight to done ───────────────
+    stored = get_pilot_scores(DB_PATH)
+    if any(s["student_id"] == ls["student_id"] and s["domain"] == domain
+           and s["test_type"] == "posttest" for s in stored):
+        st.session_state.phase = "done"
+        st.rerun()
+
+    order = topic_order(domain)
+    done  = len(order)
+    idx   = int(ls.get("traditional_index", 0))
+
+    if not order:
+        st.warning("Topic order not configured. Moving to post-test.")
+        _save(ls, "posttest")
+        st.session_state.phase = "posttest"
+        st.rerun()
+        return
+
+    if idx >= done:
+        _save(ls, "posttest")
+        st.session_state.phase = "posttest"
+        st.rerun()
+
+    topic = order[idx]
+
+    # Load the fixed practice bank for this topic
+    test_data = _load_test(PRACTICE_FILES[domain])
+    section   = next((s for s in test_data if s["topic"] == topic), None)
+    if section is None:
+        # No practice bank for this topic — skip to next topic gracefully
+        st.info(f"No practice questions available for *{_label(topic)}* — moving to the next topic.")
+        ls = dict(ls)
+        idx += 1
+        ls["traditional_index"] = idx
+        next_phase = "posttest" if idx >= done else "traditional"
+        _save(ls, next_phase)
+        st.session_state.ls = ls
+        st.session_state.phase = next_phase
+        st.rerun()
+        return
+    qs = section["questions"]
+
+    st.title(f"📝 Practice — {_label(topic)} ({idx + 1}/{done})")
+    st.info(
+        f"Answer the **{len(qs)} practice questions** for *{_label(topic)}*.  \n"
+        "Your answers are recorded for the study but **do not change the next "
+        "topic** — the path is the same for every student in this group."
+    )
+
+    # ── Review screen: score + correct answers + Continue ────────────────────────
+    # Shown after submitting. Feedback parity with the AI group — but the score
+    # never alters the fixed learning path.
+    review = st.session_state.get("practice_review")
+    if review and review.get("topic") != topic:
+        review = None                      # stale review from another topic/session
+        st.session_state.practice_review = None
+    if review:
+        st.success(f"Practice complete: **{review['correct']}/{review['total']}** "
+                   f"correct for *{_label(review['topic'])}* ({review['pct']}%).")
+        with st.expander("Review your answers", expanded=True):
+            for qi, q in enumerate(review["qs"]):
+                chosen   = review["answers"].get(q["id"], -1)
+                is_right = chosen == q["correct_index"]
+                icon     = "✅" if is_right else "❌"
+                st.markdown(f"{icon} **Q{qi + 1}.** {q['prompt']}")
+                if not is_right:
+                    ci   = q["correct_index"]
+                    opts = q["options"]
+                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;Correct answer: "
+                                f"**{chr(65 + ci)}. {opts[ci]}**")
+        if st.button("Continue ▶", type="primary", use_container_width=True):
+            st.session_state.practice_review = None
+            st.session_state.phase = review["next_phase"]
+            st.rerun()
+        return
+
+    answers = st.session_state.get("practice_answers", {})
+    with st.form("traditional_practice_form"):
+        for qi, q in enumerate(qs):
+            st.markdown(f"**Q{qi + 1}. {q['prompt']}**")
+            answers[q["id"]] = st.radio(
+                f"Answer for {q['id']}",
+                options=list(range(len(q["options"]))),
+                format_func=lambda i, opts=q["options"]: f"{chr(65 + i)}. {opts[i]}",
+                key=f"tp_{q['id']}",
+                index=answers.get(q["id"], 0),
+                label_visibility="collapsed",
+            )
+            if qi < len(qs) - 1:
+                st.markdown("---")
+        st.divider()
+        submitted = st.form_submit_button("Submit Practice Answers ✓", type="primary",
+                                          use_container_width=True)
+
+    if submitted:
+        n_correct, n_total, topic_score = _score_sectioned([section], answers)
+        pct = round(n_correct / n_total * 100, 1) if n_total else 0.0
+
+        # Log every answer to assessment_log (research data: practice_questions)
+        for q in qs:
+            chosen   = answers.get(q["id"], -1)
+            is_right = chosen == q["correct_index"]
+            log_assessment(
+                student_id=ls["student_id"], domain=domain, topic=topic,
+                item_type="practice_bank_mcq", item_text=q["prompt"],
+                response=str(chosen), grade=1.0 if is_right else 0.0,
+                justification="",
+                raw_llm_response=None, graded_by="fixed_bank",
+                flagged=False, latency_ms=None, db_path=DB_PATH,
+            )
+
+        # Persist per-topic practice scores + attempted topics (spec §17)
+        ls = dict(ls)
+        practice_scores = dict(ls.get("practice_scores", {}))
+        practice_scores[topic] = {"correct": n_correct, "total": n_total, "pct": pct}
+        ls["practice_scores"] = practice_scores
+        attempted = list(ls.get("topics_attempted", []))
+        if topic not in attempted:
+            attempted.append(topic)
+        ls["topics_attempted"] = attempted
+        ls["session_history"] = list(ls.get("session_history", [])) + [{
+            "event": "traditional_practice_completed",
+            "topic": topic,
+            "correct": n_correct,
+            "total": n_total,
+            "pct": pct,
+        }]
+        st.session_state.practice_answers = {}
+
+        # The score NEVER changes the path (spec §4): always advance through
+        # the fixed topic order, whatever the result.
+        idx += 1
+        ls["traditional_index"] = idx
+        next_phase = "posttest" if idx >= done else "traditional"
+        _save(ls, next_phase)            # persisted for session resume
+        st.session_state.ls = ls
+
+        # Stash the review (score + correct answers) and rerun so the review
+        # screen replaces the form.
+        st.session_state.practice_review = {
+            "topic": topic, "correct": n_correct, "total": n_total,
+            "pct": pct, "qs": qs, "answers": dict(answers),
+            "next_phase": next_phase,
+        }
+        st.rerun()
+
 
 
 # ── post-test ─────────────────────────────────────────────────────────────────
@@ -849,8 +1163,15 @@ def phase_posttest():
 
             st.divider()
             st.caption(f"Make sure all {total_qs} questions are answered before submitting.")
-            submitted = st.form_submit_button("Submit Post-Test ✓", type="primary",
-                                              use_container_width=True)
+            # Guard against double-submit: disable button if already submitted this render
+            already_submitted = st.session_state.get("_posttest_submitted", False)
+            submitted = st.form_submit_button(
+                "Submit Post-Test ✓", type="primary",
+                use_container_width=True,
+                disabled=already_submitted,
+            )
+            if submitted:
+                st.session_state["_posttest_submitted"] = True
 
         if submitted:
             n_correct, n_total, per_topic = _score_sectioned(test_data, answers)
@@ -873,6 +1194,11 @@ def phase_posttest():
             )
             st.session_state.posttest_score = score_pct
             st.session_state.test_answers   = {}
+            # Persist topic-level post-test scores for the research data (spec §17)
+            ls = dict(ls)
+            ls["posttest_per_topic"]  = per_topic
+            ls["posttest_score_pct"]  = score_pct
+            st.session_state.ls = ls
             _save(ls, "done")
             st.session_state.phase = "done"
             st.rerun()
@@ -906,6 +1232,9 @@ def phase_posttest():
                 db_path=DB_PATH,
             )
             st.session_state.posttest_score = score_pct
+            ls = dict(ls)
+            ls["posttest_score_pct"] = score_pct
+            st.session_state.ls = ls
             _save(ls, "done")
             st.session_state.phase = "done"
             st.rerun()
@@ -936,6 +1265,15 @@ def phase_gen_lesson():
     st.title(f"📘 {_label(topic)} — {DOMAINS[ls['domain']]}{bloom_badge}")
     st.caption(f"Current mastery: {mastery_pct:.0%}  |  Gap: {1-mastery_pct:.0%}  |  "
                f"Question style: **{b_info.get('bloom_level','standard')}** level")
+
+    # Remediation banner — the student is re-learning a topic that didn't stick
+    rem_attempt = (ls.get("engagement", {})
+                   .get("remediation_counts", {}).get(topic, 0))
+    if rem_attempt:
+        st.warning(
+            f"🔄 **Remediation round {rem_attempt}/{MAX_REMEDIATION_ATTEMPTS}** — "
+            f"let's look at *{_label(topic)}* from a different angle with new examples."
+        )
     _show_history()
 
     from src.config import FallbackLLMError
@@ -1036,10 +1374,11 @@ def phase_gen_feedback():
             ls = monitor_agent(ls)
     except FallbackLLMError as e:
         st.error(f"⚠️ Grading failed (API error). Your answer was recorded but could not be scored.\n\n*{e}*")
-        # Give partial credit and move on rather than blocking the student
         ls = dict(ls)
         ls["last_grade"] = {"correct": None, "score": 0.5, "flagged": True,
                             "justification": "Auto-grading failed — partial credit awarded."}
+        # Persist the partial-credit grade to session state AND DB
+        st.session_state.ls = ls
         _save(ls, "gen_lesson")
 
     grade   = ls.get("last_grade", {})
@@ -1065,17 +1404,22 @@ def phase_gen_feedback():
         if just:
             fb += f"\n\n*Feedback:* {just}"
 
-    if ls.get("replan_flag"):
-        fb += "\n\n⚠️ *Low mastery detected — re-sequencing topics.*"
+    if ls.get("replan_flag") and st.session_state.q_done >= st.session_state.q_per_topic - 1:
+        fb += "\n\n⚠️ *Low mastery detected — the system will adapt your learning path.*"
+
+    if correct is True:
+        st.session_state.q_correct = st.session_state.get("q_correct", 0) + 1
 
     st.session_state.history.append(("assistant", fb))
     _save(ls, "gen_feedback")
 
     st.session_state.q_done += 1
     more_qs = st.session_state.q_done < st.session_state.q_per_topic
-    replan  = ls.get("replan_flag", False)
 
-    if more_qs and not replan:
+    if more_qs:
+        # Stay on the same topic. The Monitor's replan flag is evaluated at the
+        # topic boundary only (spec §9: 5 practice questions per topic), so a
+        # mid-topic struggle never cuts the assessment short.
         try:
             with st.spinner("Preparing next question…"):
                 ls = assessment_prepare_agent(ls)
@@ -1084,34 +1428,66 @@ def phase_gen_feedback():
         _save(ls, "answering")
         st.session_state.phase = "answering"
     else:
-        ls = _advance(ls)
-        if replan and ls.get("topic_sequence"):
-            try:
-                ls = planner_agent(ls)
-            except FallbackLLMError:
-                ls = dict(ls)
-                ls["replan_flag"] = False   # clear flag so we don't loop
-        st.session_state.topics_done += 1
-        st.session_state.q_done      = 0
+        # ── Topic boundary: adapt, remediate, or advance (spec §11–12) ────────
+        finished_topic = ls.get("topic_pointer")
+        decision, ls   = topic_end_decision(ls, bool(ls.get("replan_flag")))
 
-        # Persist topics_done into engagement so session resume knows progress
-        ls = dict(ls)
-        ls["engagement"]["topics_done"] = st.session_state.topics_done
-        _save(ls, "gen_lesson")
-        st.session_state.ls = ls
-
-        no_topics = not ls.get("topic_sequence")
-        quota     = st.session_state.topics_done >= st.session_state.max_topics
-        if no_topics or quota:
-            _save(ls, "posttest")
-            # If in practice mode, go back to practice menu instead of posttest
-            if st.session_state.get("practice_mode"):
-                st.session_state.practice_mode = False
-                st.session_state.phase = "practice_menu"
-            else:
-                st.session_state.phase = "posttest"
-        else:
+        if decision == "remediate":
+            # Same topic, all-new material and new questions. The Content agent
+            # reads remediation_counts and produces a DIFFERENT lesson; the
+            # Assessment agent generates a fresh non-repeated question.
+            st.session_state.q_done    = 0
+            st.session_state.q_correct = 0
+            ls = dict(ls)
+            ls["engagement"]["topics_done"] = st.session_state.topics_done
+            _save(ls, "gen_lesson")
+            st.session_state.ls = ls
             st.session_state.phase = "gen_lesson"
+        else:
+            # Record the AI arm's per-topic practice score (research data §17)
+            q_correct = st.session_state.get("q_correct", 0)
+            q_total   = st.session_state.q_per_topic
+            ls = dict(ls)
+            practice_scores = dict(ls.get("practice_scores", {}))
+            practice_scores[finished_topic] = {
+                "correct": q_correct, "total": q_total,
+                "pct": round(q_correct / q_total * 100, 1) if q_total else 0.0,
+            }
+            ls["practice_scores"] = practice_scores
+            attempted = list(ls.get("topics_attempted", []))
+            if finished_topic and finished_topic not in attempted:
+                attempted.append(finished_topic)
+            ls["topics_attempted"] = attempted
+
+            ls = _advance(ls)
+            if decision == "advance_needs_review" and ls.get("topic_sequence"):
+                try:
+                    ls = planner_agent(ls)
+                except FallbackLLMError:
+                    ls = dict(ls)
+                    ls["replan_flag"] = False   # clear flag so we don't loop
+
+            st.session_state.topics_done += 1
+            st.session_state.q_done      = 0
+            st.session_state.q_correct   = 0
+
+            # Persist topics_done into engagement so session resume knows progress
+            ls["engagement"]["topics_done"] = st.session_state.topics_done
+            _save(ls, "gen_lesson")
+            st.session_state.ls = ls
+
+            no_topics = not ls.get("topic_sequence")
+            quota     = st.session_state.topics_done >= st.session_state.max_topics
+            if no_topics or quota:
+                _save(ls, "posttest")
+                # If in practice mode, go back to practice menu instead of posttest
+                if st.session_state.get("practice_mode"):
+                    st.session_state.practice_mode = False
+                    st.session_state.phase = "practice_menu"
+                else:
+                    st.session_state.phase = "posttest"
+            else:
+                st.session_state.phase = "gen_lesson"
 
     st.rerun()
 
@@ -1186,6 +1562,11 @@ def phase_done():
         st.dataframe(m_df[["Topic", "Mastery", "Status"]], use_container_width=True, hide_index=True)
     else:
         st.info("No mastery yet (typical for the control group, which only studies notes).")
+
+    eng = ls.get("engagement", {})
+    if eng.get("learning_time_sec"):
+        minutes = eng["learning_time_sec"] / 60.0
+        st.caption(f"⏱ Total time spent in this study: **{minutes:.0f} min**")
 
     st.divider()
     # ── Issue 9: clear completion message for students ────────────────────────
@@ -1576,6 +1957,46 @@ Until configured, all data is stored locally in `results/learner_state.db`.
                 file_name="survey_responses.csv",
                 mime="text/csv",
             )
+        st.markdown("**Research summary (spec §17 — one row per student):**")
+        try:
+            research_rows = []
+            loaded_keys = set()
+            for s in (scores or []):
+                key = (s["student_id"], s["domain"])
+                if key in loaded_keys:
+                    continue
+                loaded_keys.add(key)
+                stt = load_state(DB_PATH, s["student_id"], s["domain"])
+                eng = stt.get("engagement", {})
+                research_rows.append({
+                    "student_id":   s["student_id"],
+                    "domain":       s["domain"],
+                    "group":        stt.get("group", s.get("group", "")),
+                    "pre_test_score":        stt.get("pretest_score_pct"),
+                    "pre_test_topic_scores": json.dumps(stt.get("pretest_per_topic") or {}),
+                    "post_test_score":       stt.get("posttest_score_pct"),
+                    "post_test_topic_scores": json.dumps(stt.get("posttest_per_topic") or {}),
+                    "topics_attempted":      json.dumps(stt.get("topics_attempted") or []),
+                    "needs_review":          json.dumps(stt.get("needs_review") or {}),
+                    "practice_scores":       json.dumps(stt.get("practice_scores") or {}),
+                    "number_of_replans":     eng.get("total_replans", 0),
+                    "number_of_remediations": eng.get("total_remediations", 0),
+                    "max_remediation_attempts": MAX_REMEDIATION_ATTEMPTS,
+                    "total_learning_time_sec": round(eng.get("learning_time_sec", 0.0), 1),
+                    "n_sessions": eng.get("session_count", 0),
+                    "final_mastery":         json.dumps(stt.get("mastery") or {}),
+                })
+            if research_rows:
+                st.download_button(
+                    f"⬇ research_summary.csv  ({len(research_rows)} rows)",
+                    data=pd.DataFrame(research_rows).to_csv(index=False),
+                    file_name="research_summary.csv", mime="text/csv",
+                    help="All spec §17 fields flattened per student for the research evaluation.",
+                )
+            else:
+                st.info("No learner state yet.")
+        except Exception as e:
+            st.warning(f"Could not build research summary: {e}")
         st.divider()
         st.markdown("**Run all metrics from terminal:**")
         st.code("python -m eval.run_all_metrics", language="bash")
@@ -1953,6 +2374,7 @@ PHASES = {
     "login":           phase_login,
     "pretest":         phase_pretest,
     "traditional":     phase_traditional,
+    "traditional_practice": phase_traditional_practice,
     "gen_lesson":      phase_gen_lesson,
     "answering":       phase_answering,
     "gen_feedback":    phase_gen_feedback,

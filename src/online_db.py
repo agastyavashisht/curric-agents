@@ -39,30 +39,41 @@ load_dotenv(find_dotenv(), override=True)
 def _get_secret(key: str, default: str = "") -> str:
     """
     Read a secret from Streamlit secrets (cloud) or .env (local).
-    Streamlit Cloud exposes secrets via st.secrets, not os.environ.
+    Called per-request, NOT at module import time, so st.secrets is available.
     """
-    # Try st.secrets first (Streamlit Cloud)
     try:
         import streamlit as st
-        return str(st.secrets.get(key, "")) or os.getenv(key, default)
+        val = st.secrets.get(key, "")
+        if val:
+            return str(val)
     except Exception:
         pass
     return os.getenv(key, default)
 
-_URL  = _get_secret("SUPABASE_URL", "").rstrip("/")
-_KEY  = _get_secret("SUPABASE_ANON_KEY", "")
+
+def _url() -> str:
+    """Return Supabase URL — read fresh each call so Cloud secrets work."""
+    return _get_secret("SUPABASE_URL", "").rstrip("/")
+
+
+def _key() -> str:
+    """Return Supabase anon key — read fresh each call so Cloud secrets work."""
+    return _get_secret("SUPABASE_ANON_KEY", "")
+
+
 _TIMEOUT = 8   # seconds per request
 
 
 def _online() -> bool:
-    """True if Supabase is configured."""
-    return bool(_URL and _KEY)
+    """True if Supabase is configured — evaluated per-call, not at import time."""
+    return bool(_url() and _key())
 
 
 def _headers() -> dict:
+    k = _key()
     return {
-        "apikey":        _KEY,
-        "Authorization": f"Bearer {_KEY}",
+        "apikey":        k,
+        "Authorization": f"Bearer {k}",
         "Content-Type":  "application/json",
         "Prefer":        "return=minimal",
     }
@@ -70,11 +81,12 @@ def _headers() -> dict:
 
 def _post(table: str, payload: dict) -> bool:
     """Insert one row into a Supabase table. Returns True on success."""
-    if not _online():
+    url = _url()
+    if not url or not _key():
         return False
     try:
         r = requests.post(
-            f"{_URL}/rest/v1/{table}",
+            f"{url}/rest/v1/{table}",
             headers={**_headers(), "Prefer": "return=minimal,resolution=merge-duplicates"},
             json=payload,
             timeout=_TIMEOUT,
@@ -90,11 +102,12 @@ def _post(table: str, payload: dict) -> bool:
 
 def _get(table: str, params: dict | None = None) -> list[dict]:
     """Select rows from a Supabase table. Returns [] on failure."""
-    if not _online():
+    url = _url()
+    if not url or not _key():
         return []
     try:
         r = requests.get(
-            f"{_URL}/rest/v1/{table}",
+            f"{url}/rest/v1/{table}",
             headers={**_headers(), "Prefer": "return=representation"},
             params=params or {},
             timeout=_TIMEOUT,
@@ -117,11 +130,12 @@ def is_configured() -> bool:
 
 def test_connection() -> tuple[bool, str]:
     """Ping Supabase. Returns (success, message)."""
-    if not _online():
+    url = _url()
+    if not url or not _key():
         return False, "SUPABASE_URL or SUPABASE_ANON_KEY not set in .env"
     try:
         r = requests.get(
-            f"{_URL}/rest/v1/pilot_scores",
+            f"{url}/rest/v1/pilot_scores",
             headers=_headers(),
             params={"limit": "1"},
             timeout=_TIMEOUT,

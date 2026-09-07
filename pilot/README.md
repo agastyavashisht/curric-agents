@@ -38,8 +38,20 @@ Aim for ~10 per group.
 
 1. Give the participant their Study ID (from `student_id_map.csv`)
 2. Direct them to `http://<deployment-host>:8501`
-3. They log in with Study ID, select their domain, and the system handles the rest
+3. They log in with their Study ID — the group is auto-assigned from the ID
+   (odd = experimental/AI, even = control/traditional) and the system handles the rest
 4. Session state is saved automatically — they can resume at any time
+
+### What each participant experiences
+
+| Stage | Experimental (AI) | Control (Traditional) |
+|-------|-------------------|------------------------|
+| Pre-test | Same fixed 25-question test (5 per topic), no feedback | Same fixed 25-question test, no feedback |
+| Learning | Planner picks the next topic; Content agent personalises the lesson; 5 AI-generated practice questions per topic; Monitor updates mastery and remediates weak topics (max 2 rounds, then the topic is marked *needs_review* and re-scheduled) | Fixed topic order (Variables → Control Flow → Loops → Functions → OOP); corpus notes for one topic at a time; 5 FIXED practice questions per topic from `data/practice_python.json` — scores never change the path |
+| Post-test | Same fixed 25-question test, no feedback | Same fixed 25-question test, no feedback |
+
+Both arms record `total_learning_time`, replans/remediations and per-topic scores
+for the research comparison (export `research_summary.csv` from the Researcher Dashboard).
 
 ## Monitoring During the Pilot
 

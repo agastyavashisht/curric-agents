@@ -57,7 +57,7 @@ Bloom level guidance for question style:
 
 Write 4 options. Exactly one must be correct. The three incorrect options should each
 target a plausible misconception a learner at the {bloom_level} level might have.
-
+{remediation_note}
 Respond ONLY as JSON:
 {{"prompt": "...", "options": ["...", "...", "...", "..."],
   "correct_index": 0, "bloom_level": "{bloom_level}",
@@ -82,11 +82,20 @@ No markdown fences.
 """
 
 
-def _generate_mcq(llm, topic, objective, bloom_level="understand"):
+def _generate_mcq(llm, topic, objective, bloom_level="understand", remediation_attempt=0):
     raw = ""
+    remediation_note = ""
+    if remediation_attempt > 0:
+        remediation_note = (
+            f"This is a remediation question (attempt #{remediation_attempt}) for a student "
+            "who struggled with this topic. Write a DIFFERENT question probing this "
+            "learning objective from a fresh angle — do NOT reuse the same scenario, code "
+            "snippet, or phrasing of previous questions on this topic.\n"
+        )
     try:
         resp = llm.invoke(_MCQ_PROMPT.format(
-            topic=topic, objective=objective, bloom_level=bloom_level))
+            topic=topic, objective=objective, bloom_level=bloom_level,
+            remediation_note=remediation_note))
         raw = _strip_fences(extract_content(resp))
         if raw:
             return json.loads(raw)
@@ -94,15 +103,17 @@ def _generate_mcq(llm, topic, objective, bloom_level="understand"):
     except Exception as e:
         print(f"[WARNING] MCQ generation failed for '{topic}': {e}")
         print(f"[WARNING] Raw response: {raw[:300]}")
+        # Use a random correct_index so the fallback isn't trivially gameable
+        import random
+        ci = random.randint(0, 3)
+        opts = ["An unrelated concept", "A different unrelated topic",
+                "None of the above are correct",
+                objective[:80] if len(objective) <= 80 else objective[:77] + "..."]
+        random.shuffle(opts)
         return {
             "prompt": f"Which of the following best describes '{topic}'?",
-            "options": [
-                objective[:80] if len(objective) <= 80 else objective[:77] + "...",
-                "An unrelated concept",
-                "A different unrelated topic",
-                "None of the above are correct"
-            ],
-            "correct_index": 0,
+            "options": opts,
+            "correct_index": ci,
             "bloom_level": bloom_level,
             "distractor_misconceptions": ["generic_1", "generic_2", "generic_3"]
         }
@@ -176,7 +187,16 @@ def prepare_item(state: LearnerState) -> LearnerState:
             {"event": "rubric_missing_mcq_substituted", "topic": topic, "domain": state["domain"]}
         ]
 
-    item = _generate_mcq(gen_llm, topic, objective, bloom_level)
+    # Remediation mode (spec §11): write a DIFFERENT question probing the same
+    # objective from a fresh angle, so the student does not simply see the same
+    # item repeatedly.
+    remediation_attempt = (
+        state.get("engagement", {}).get("remediation_counts", {}).get(topic, 0)
+    )
+    if remediation_attempt:
+        bloom_level = "apply" if bloom_level in ("remember", "understand") else bloom_level
+
+    item = _generate_mcq(gen_llm, topic, objective, bloom_level, remediation_attempt)
     state["pending_item"] = {"format": "mcq", **item}
     return state
 

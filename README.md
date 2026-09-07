@@ -9,18 +9,44 @@ Supervisor: Dr. Raghav Mehra · Chandigarh University, AIT-CSE
 
 ## What this system does
 
-Four specialised AI agents work together in a closed loop to teach a student:
+Two learning approaches are compared in a controlled experiment. Both groups take
+the **same 25-question pre-test** and the **same 25-question post-test** — only the
+learning between them differs:
 
 ```
-Pre-test → PLANNER → CONTENT → ASSESSMENT → MONITOR → (replan?) → Post-test
+                 BOTH GROUPS
+Pre-test (25 Q, 5 per topic, no feedback)
+        │
+        ├── Traditional / Control ──► Fixed material in fixed order
+        │                             (Variables → Control Flow → Loops →
+        │                              Functions → OOP) + FIXED 25-question
+        │                              practice bank (5 per topic).
+        │                             Scores never change the path.
+        │
+        └── AI / Experimental ──────► PLANNER → CONTENT → ASSESSMENT → MONITOR
+                                      closed loop. Mastery from the pre-test
+                                      bootstraps the plan; weak topics are
+                                      remediated with NEW material/questions
+                                      (max 2 rounds per topic, then the topic
+                                      is marked needs_review and re-scheduled).
+        │
+Post-test (same 25 Q, no feedback)
+        │
+learning_gain = post − pre   (plus Hake's normalised ⟨g⟩)
 ```
 
 | Agent | Role |
 |---|---|
 | **Planner** | Selects next topic using BKT mastery + paper Eq. 2 heuristic + LLM re-rank |
-| **Content** | Retrieves course notes (RAG) and generates a Bloom-level lesson |
+| **Content** | Retrieves course notes (RAG) and generates a Bloom-level lesson; on remediation it generates a *different* lesson addressing the student's misconceptions |
 | **Assessment** | Generates an MCQ or short-answer question; grades the response |
-| **Monitor** | Updates mastery via Bayesian Knowledge Tracing (BKT, paper Eq. 1) + Ebbinghaus forgetting |
+| **Monitor** | Updates mastery via Bayesian Knowledge Tracing (BKT, paper Eq. 1) + Ebbinghaus forgetting; triggers replan/remediation |
+
+### Fairness controls (spec §15, §19)
+
+* Pre-test and post-test are identical fixed files for both groups (`data/pretest_python.json` form A, `data/posttest_python.json` form B) — neither is AI-generated.
+* Practice questions (AI-generated for the AI arm, fixed bank for the control arm) are separate from both tests.
+* `total_learning_time`, `number_of_replans`, `number_of_remediations`, topic-wise scores and all practice answers are recorded per student (spec §17) and exportable as `research_summary.csv` from the Researcher Dashboard.
 
 ---
 
@@ -117,9 +143,11 @@ app.py                          ← Streamlit web app (student-facing)
 src/
   agents/
     planner.py                  ← Planner (BKT bootstrap + Eq.2 heuristic + LLM re-rank)
-    content.py                  ← Content (RAG + Bloom-level generation)
+    content.py                  ← Content (RAG + Bloom-level generation, remediation-aware)
     assessment.py               ← Assessment (MCQ/SA generation + BKT grading)
     monitor.py                  ← Monitor (BKT Eq.1 + Ebbinghaus decay)
+  remediation.py                ← Topic-end decision: remediate / advance / needs_review (spec §12)
+  notes.py                      ← Fixed topic order + per-topic corpus notes (control arm)
   config.py                     ← LLM factory + retry proxy (30 s timeout)
   state.py                      ← LearnerState schema
   db.py                         ← SQLite + Supabase dual-write
@@ -137,14 +165,15 @@ eval/
   grading_reliability.py        ← QWK, Fleiss κ, Krippendorff α, F1 (pure numpy)
   run_all_metrics.py            ← Run all 4 metrics with one command
 data/
-  prerequisite_graph.json       ← Python domain (12 topics)
+  prerequisite_graph.json       ← Python domain (5 pilot topics)
   ml_basics_graph.json
   signal_processing_graph.json
   physiology_graph.json
   data_analysis_graph.json
   corpus/                       ← RAG source material (5 × .md files)
-  pretest_*.json                ← Fixed 10-MCQ pre-tests per domain
-  posttest_*.json               ← Fixed 10-MCQ post-tests per domain
+  pretest_*.json                ← Fixed 25-question (5/topic) pre-tests
+  posttest_*.json               ← Fixed 25-question (5/topic) post-tests
+  practice_python.json          ← Fixed 25-question practice bank (control arm)
   rubrics/                      ← Short-answer rubrics
 pilot/
   consent_form.md               ← Fill in before recruiting students
@@ -154,4 +183,6 @@ logs/                           ← agent_calls.jsonl lands here
 tests/
   full_check.py                 ← 64-check automated health test
   test_personalisation.py       ← 20-check personalisation test
+  test_smoke.py                 ← Deterministic no-API-key tests
+  test_flow_spec.py             ← Traditional-vs-AI flow spec tests (no API key)
 ```

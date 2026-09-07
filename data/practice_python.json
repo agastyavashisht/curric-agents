@@ -1,0 +1,202 @@
+{
+  "form": "C",
+  "domain": "python_programming",
+  "description": "Fixed practice bank for the Traditional / control group (spec §4). Questions are intentionally different from both the pre-test (Form A) and post-test (Form B). The student's score on these questions NEVER changes the next topic — the path is the same for every control-group student.",
+  "sections": [
+    {
+      "topic": "variables_datatypes",
+      "title": "Practice: Variables & Data Types",
+      "questions": [
+        {
+          "id": "p_v1",
+          "prompt": "Which of the following correctly declares a variable in Python?",
+          "options": ["int x = 5", "x := 5", "x = 5", "var x = 5"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_v2",
+          "prompt": "What is the data type of the value `'hello'`?",
+          "options": ["int", "float", "bool", "str"],
+          "correct_index": 3
+        },
+        {
+          "id": "p_v3",
+          "prompt": "What does `float('3')` return?",
+          "options": ["3", "3.0", "'3.0'", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_v4",
+          "prompt": "Which of the following is NOT a valid Python data type?",
+          "options": ["int", "char", "float", "bool"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_v5",
+          "prompt": "What is the result of `type(3 + 2.0)`?",
+          "options": ["<class 'int'>", "<class 'str'>", "<class 'float'>", "<class 'complex'>"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "topic": "control_flow",
+      "title": "Practice: Control Flow",
+      "questions": [
+        {
+          "id": "p_c1",
+          "prompt": "What is the output?\n```\nx = 10\nif x < 5:\n    print('low')\nelif x < 15:\n    print('mid')\nelse:\n    print('high')\n```",
+          "options": ["low", "mid", "high", "Nothing"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_c2",
+          "prompt": "Which of the following evaluates to `True`?",
+          "options": ["5 > 10 and 3 < 4", "5 < 10 and 3 < 4", "5 > 10 or 3 > 4", "not (5 < 10)"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_c3",
+          "prompt": "What keyword starts an `if` block that is executed when no other condition is true?",
+          "options": ["elif", "otherwise", "else", "default"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_c4",
+          "prompt": "What is the output of `print(5 > 3)`?",
+          "options": ["5", "3", "True", "False"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_c5",
+          "prompt": "How many times is the `print` called?\n```\nx = 4\nif x > 2:\n    print('a')\nif x > 3:\n    print('b')\nif x > 5:\n    print('c')\n```",
+          "options": ["0", "1", "2", "3"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "topic": "loops",
+      "title": "Practice: Loops",
+      "questions": [
+        {
+          "id": "p_l1",
+          "prompt": "What is the output?\n```\nfor i in range(1, 4):\n    print(i)\n```",
+          "options": ["1 2 3 4", "0 1 2 3", "1 2 3", "0 1 2"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_l2",
+          "prompt": "What does `continue` do in a loop?",
+          "options": ["Exits the loop", "Skips the rest of the current iteration", "Pauses the loop", "Restarts the loop from the beginning"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_l3",
+          "prompt": "How many iterations does `while x > 0` run if `x` starts at 3 and decrements by 1 each time?",
+          "options": ["2", "3", "4", "Infinite"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_l4",
+          "prompt": "What is the output?\n```\nfor i in range(0, 6, 3):\n    print(i)\n```",
+          "options": ["0 3", "0 3 6", "0 1 2 3 4 5", "3 6"],
+          "correct_index": 0
+        },
+        {
+          "id": "p_l5",
+          "prompt": "Which loop always executes its body at least once?",
+          "options": ["for loop", "while loop", "Python does not have such a loop", "nested loop"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "topic": "functions",
+      "title": "Practice: Functions",
+      "questions": [
+        {
+          "id": "p_f1",
+          "prompt": "What is the output?\n```\ndef double(n):\n    return n * 2\nprint(double(6))\n```",
+          "options": ["6", "2", "12", "Error"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_f2",
+          "prompt": "Which statement about Python functions is correct?",
+          "options": [
+            "A function must always return a value",
+            "A function can only accept one argument",
+            "A function can be called multiple times",
+            "A function must be defined after it is called"
+          ],
+          "correct_index": 2
+        },
+        {
+          "id": "p_f3",
+          "prompt": "What is the scope of a variable defined inside a function?",
+          "options": ["Global", "Module-level", "Local to that function", "Shared with all functions"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_f4",
+          "prompt": "What is the output?\n```\ndef greet(name, msg='Hi'):\n    print(msg, name)\ngreet('Alice')\n```",
+          "options": ["Alice Hi", "Hi Alice", "Hi", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_f5",
+          "prompt": "What does this function return?\n```\ndef check(x):\n    if x > 0:\n        return 'positive'\nprint(check(-1))\n```",
+          "options": ["'positive'", "0", "None", "Error"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "topic": "oop_basics",
+      "title": "Practice: OOP Basics",
+      "questions": [
+        {
+          "id": "p_o1",
+          "prompt": "What does the following code print?\n```\nclass Animal:\n    def __init__(self, name):\n        self.name = name\na = Animal('Cat')\nprint(a.name)\n```",
+          "options": ["Animal", "Cat", "name", "Error"],
+          "correct_index": 1
+        },
+        {
+          "id": "p_o2",
+          "prompt": "Which keyword is used to create a child class that inherits from a parent class?",
+          "options": ["extends", "inherits", "class Child(Parent):", "super"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_o3",
+          "prompt": "What does `self` refer to inside a class method?",
+          "options": [
+            "The class itself",
+            "The current instance of the class",
+            "The parent class",
+            "The module"
+          ],
+          "correct_index": 1
+        },
+        {
+          "id": "p_o4",
+          "prompt": "How do you call a method `bark` on an object `dog`?",
+          "options": ["bark(dog)", "dog->bark()", "dog.bark()", "Dog.bark(dog)"],
+          "correct_index": 2
+        },
+        {
+          "id": "p_o5",
+          "prompt": "Which of the following is TRUE about `__init__`?",
+          "options": [
+            "It is called when the class is deleted",
+            "It is optional but can only appear once",
+            "It is automatically called when creating a new instance",
+            "It must return a value"
+          ],
+          "correct_index": 2
+        }
+      ]
+    }
+  ]
+}

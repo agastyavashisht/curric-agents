@@ -163,9 +163,17 @@ def main():
     # ── 5. Grading reliability (QWK) ─────────────────────────────────────────
     print("\n[5/5] Grading reliability (QWK against instructor grades)…")
     from eval.grading_reliability import analyze as gr_analyze
+    # Accept both "instructor_grades.csv" and "instructor_grades_template.csv"
+    # (the dashboard exports the template; the researcher fills it in and
+    #  may or may not rename it — we check both names)
+    _grade_paths = [
+        "results/instructor_grades.csv",
+        "results/instructor_grades_template.csv",
+    ]
+    _grade_file = next((p for p in _grade_paths if os.path.exists(p)), _grade_paths[0])
     gr_result = safe_run(
         "grading_reliability",
-        lambda: gr_analyze("results/instructor_grades.csv"),
+        lambda: gr_analyze(_grade_file),
     )
     report["grading_reliability"] = gr_result
     _print_status("Grading reliability", gr_result)

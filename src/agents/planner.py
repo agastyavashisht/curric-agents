@@ -70,7 +70,29 @@ def _pretest_bootstrap(
 
     Falls back to positional estimation from overall score if per-topic data
     is not available (old flat test format).
+
+    NOTE: pretest_score_pct is cleared after first bootstrap so the planner
+    doesn't re-bootstrap on replans. pretest_per_topic is kept in state so
+    replans can still use it (this function guards against re-overwriting real
+    mastery history via the `mastery[topic] > 0` check).
     """
+    # If we have per-topic data, use it even if overall score is now None
+    # (it gets cleared after first bootstrap to avoid repeated re-running)
+    if pretest_per_topic and pretest_score_pct is None:
+        # Still run the accurate path on replans — but only for topics that
+        # have no real interaction history yet (mastery == 0)
+        mastery = dict(mastery)
+        import json as _json
+        topics_dict = topics if isinstance(topics, dict) else {}
+        for topic, scores in pretest_per_topic.items():
+            if topic not in topics_dict:
+                continue
+            if mastery.get(topic, 0.0) > 0:
+                continue   # real interaction history — never overwrite
+            pct = scores.get("pct", 0.0)
+            mastery[topic] = round((pct / 100.0) * 0.95, 3)
+        return mastery
+
     if pretest_score_pct is None:
         return mastery
 
@@ -277,20 +299,20 @@ def _llm_rerank(
     if not baseline:
         return baseline, "empty plan"
 
-    llm = get_llm("planner")
     prereqs = {t: topics[t].get("prerequisites", []) for t in baseline}
     # include only topics in the plan
     m_sub = {t: round(mastery.get(t, 0.0), 3) for t in baseline}
     mi_sub = {t: misconceptions.get(t, []) for t in baseline if misconceptions.get(t)}
 
-    prompt = _RERANK_PROMPT.format(
-        domain=domain,
-        order=json.dumps(baseline),
-        mastery=json.dumps(m_sub),
-        misconceptions=json.dumps(mi_sub),
-        prereqs=json.dumps(prereqs),
-    )
     try:
+        llm = get_llm("planner")
+        prompt = _RERANK_PROMPT.format(
+            domain=domain,
+            order=json.dumps(baseline),
+            mastery=json.dumps(m_sub),
+            misconceptions=json.dumps(mi_sub),
+            prereqs=json.dumps(prereqs),
+        )
         raw      = _strip_fences(extract_content(llm.invoke(prompt)))
         parsed   = json.loads(raw)
         proposed = parsed.get("topic_sequence", [])
@@ -350,6 +372,19 @@ def planner_node(state: LearnerState) -> LearnerState:
         # Ablation: no adaptive planning — keep fixed topo order
         new_sequence = baseline
         rationale    = f"ablation_mode={ablation_mode}: fixed sequence"
+
+    # ── Layer 5b: schedule needs_review topics for a LATER review ────────────
+    # Topics that already hit the remediation cap in this course are pushed
+    # to the END of the plan so the student finishes everything else first.
+    # (Spec §12: "allow student to continue, schedule topic for later review".)
+    needs_review = state.get("needs_review", {})
+    flagged_last = [t for t in new_sequence if needs_review.get(t)]
+    if flagged_last:
+        new_sequence = [t for t in new_sequence if t not in flagged_last] + flagged_last
+        state["session_history"] = list(state.get("session_history", [])) + [{
+            "event": "needs_review_scheduled_later",
+            "topics": flagged_last,
+        }]
 
     # ── Layer 5: annotate with Bloom levels ───────────────────────────────────
     bloom_plan = [
